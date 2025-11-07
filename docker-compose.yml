@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:15
     container_name: ragdemo_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ragdemo
       POSTGRES_USER: postgres
@@ -12,6 +13,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ragdemo_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
@@ -21,10 +24,14 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ragdemo_redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1000", "--appendonly", "yes"]
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - ragdemo_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
@@ -33,4 +40,7 @@ services:
 
 volumes:
   postgres_data:
-  redis_data: 
+  redis_data:
+
+networks:
+  ragdemo_net:
