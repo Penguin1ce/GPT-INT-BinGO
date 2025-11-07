@@ -4,9 +4,9 @@ import com.firefly.ragdemo.VO.FileVO;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.entity.User;
 import com.firefly.ragdemo.mapper.UploadedFileMapper;
-import com.firefly.ragdemo.mapper.DocumentChunkMapper;
 import com.firefly.ragdemo.service.FileService;
 import com.firefly.ragdemo.service.RagIndexService;
+import com.firefly.ragdemo.repository.RedisDocumentChunkRepository;
 import com.firefly.ragdemo.util.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +30,7 @@ public class FileServiceImpl implements FileService {
 
     private final UploadedFileMapper uploadedFileMapper;
     private final RagIndexService ragIndexService;
-    private final DocumentChunkMapper documentChunkMapper;
+    private final RedisDocumentChunkRepository redisDocumentChunkRepository;
 
     @Value("${app.file.upload-dir:uploads}")
     private String uploadDir;
@@ -129,7 +129,7 @@ public class FileServiceImpl implements FileService {
         if (!Objects.equals(file.getUserId(), userId)) {
             throw new IllegalArgumentException("无权删除他人文件");
         }
-        documentChunkMapper.deleteByFileIdAndUser(fileId, userId);
+        redisDocumentChunkRepository.deleteByFileIdAndUser(fileId, userId);
         // 删除磁盘文件（忽略失败）
         try {
             Path p = Paths.get(file.getFilePath());

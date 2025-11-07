@@ -2,8 +2,8 @@ package com.firefly.ragdemo.service.impl;
 
 import com.firefly.ragdemo.entity.DocumentChunk;
 import com.firefly.ragdemo.entity.UploadedFile;
-import com.firefly.ragdemo.mapper.DocumentChunkMapper;
 import com.firefly.ragdemo.mapper.UploadedFileMapper;
+import com.firefly.ragdemo.repository.RedisDocumentChunkRepository;
 import com.firefly.ragdemo.service.EmbeddingService;
 import com.firefly.ragdemo.service.RagIndexService;
 import com.firefly.ragdemo.service.TextChunker;
@@ -28,9 +28,9 @@ import java.util.UUID;
 public class RagIndexServiceImpl implements RagIndexService {
 
     private final UploadedFileMapper uploadedFileMapper;
-    private final DocumentChunkMapper documentChunkMapper;
     private final TextChunker textChunker;
     private final EmbeddingService embeddingService;
+    private final RedisDocumentChunkRepository redisDocumentChunkRepository;
 
     private final Tika tika = new Tika();
 
@@ -76,10 +76,8 @@ public class RagIndexServiceImpl implements RagIndexService {
                         .createdAt(LocalDateTime.now())
                         .build());
             }
-            if (!entities.isEmpty()) {
-                int inserted = documentChunkMapper.insertBatch(entities);
-                log.info("写入分块记录数: {} (fileId={})", inserted, fileId);
-            }
+            redisDocumentChunkRepository.saveAll(entities);
+            log.info("已写入Redis分块记录数: {} (fileId={})", entities.size(), fileId);
             uploadedFileMapper.updateStatus(fileId, UploadedFile.FileStatus.COMPLETED.name());
         } catch (Exception e) {
             log.error("索引文件失败: {}", fileId, e);
