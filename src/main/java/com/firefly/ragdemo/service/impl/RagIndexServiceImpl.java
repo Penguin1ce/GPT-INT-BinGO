@@ -11,6 +11,7 @@ import com.firefly.ragdemo.service.TextChunker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,7 @@ public class RagIndexServiceImpl implements RagIndexService {
     private final Tika tika = new Tika();
 
     @Override
+    @Async("ragIndexExecutor")
     @Transactional
     public void indexFile(String fileId) {
         Optional<UploadedFile> fileOpt = uploadedFileMapper.findById(fileId);

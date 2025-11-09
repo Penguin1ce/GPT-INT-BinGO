@@ -45,3 +45,7 @@ Thumbnail.db
 application-dev.yaml
 
 /uploads/
+
+# Log files
+/logs/
+*.log

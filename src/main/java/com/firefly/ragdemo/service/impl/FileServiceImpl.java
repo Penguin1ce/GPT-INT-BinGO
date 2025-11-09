@@ -173,24 +173,14 @@ public class FileServiceImpl implements FileService {
                     new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            startIndexThread(fileId);
+                            log.info("事务提交后开始异步索引文件: {}", fileId);
+                            ragIndexService.indexFile(fileId);
                         }
                     }
             );
         } else {
-            startIndexThread(fileId);
+            log.info("直接开始异步索引文件: {}", fileId);
+            ragIndexService.indexFile(fileId);
         }
     }
-
-    private void startIndexThread(String fileId) {
-        new Thread(() -> {
-            try {
-                log.info("开始索引文件: {}", fileId);
-                ragIndexService.indexFile(fileId);
-                log.info("fuck!!!!!!!!!!!!!文件索引完成: {}", fileId);
-            } catch (Exception e) {
-                log.error("文件处理失败: {}", fileId, e);
-            }
-        }, "rag-index-" + fileId).start();
-    }
-} 
+}
