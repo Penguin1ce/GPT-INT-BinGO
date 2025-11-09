@@ -4,14 +4,17 @@ import com.firefly.ragdemo.VO.ApiResponse;
 import com.firefly.ragdemo.VO.FileVO;
 import com.firefly.ragdemo.entity.User;
 import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
+import com.firefly.ragdemo.service.FileProcessingNotificationService;
 import com.firefly.ragdemo.service.FileService;
 import com.firefly.ragdemo.util.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +26,7 @@ import java.util.Map;
 public class FileController {
 
     private final FileService fileService;
+    private final FileProcessingNotificationService fileProcessingNotificationService;
 
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<FileVO>> uploadFile(@RequestParam("file") MultipartFile file,
@@ -96,5 +100,10 @@ public class FileController {
             log.error("删除文件失败 for user {}: {}", principal.getUserId(), e.getMessage(), e);
             return ResponseEntity.status(500).body(ApiResponse.error("删除文件失败"));
         }
+    }
+
+    @GetMapping(value = "/files/processing-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter subscribeProcessing(@AuthenticationPrincipal CustomUserPrincipal principal) {
+        return fileProcessingNotificationService.subscribe(principal.getUserId());
     }
 }

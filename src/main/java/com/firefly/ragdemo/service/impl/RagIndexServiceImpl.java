@@ -5,6 +5,7 @@ import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.mapper.UploadedFileMapper;
 import com.firefly.ragdemo.repository.RedisDocumentChunkRepository;
 import com.firefly.ragdemo.service.EmbeddingService;
+import com.firefly.ragdemo.service.FileProcessingNotificationService;
 import com.firefly.ragdemo.service.RagIndexService;
 import com.firefly.ragdemo.service.TextChunker;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class RagIndexServiceImpl implements RagIndexService {
     private final TextChunker textChunker;
     private final EmbeddingService embeddingService;
     private final RedisDocumentChunkRepository redisDocumentChunkRepository;
+    private final FileProcessingNotificationService fileProcessingNotificationService;
 
     private final Tika tika = new Tika();
 
@@ -58,6 +60,11 @@ public class RagIndexServiceImpl implements RagIndexService {
             if (chunks.isEmpty()) {
                 log.info("文件无可索引内容: {}", fileId);
                 uploadedFileMapper.updateStatus(fileId, UploadedFile.FileStatus.COMPLETED.name());
+                file.setStatus(UploadedFile.FileStatus.COMPLETED);
+                fileProcessingNotificationService.notifyStatus(
+                        file,
+                        UploadedFile.FileStatus.COMPLETED,
+                        "文件无可索引内容，直接标记为完成");
                 return;
             }
             List<List<Double>> embeddings = embeddingService.embedBatch(chunks);
@@ -79,9 +86,19 @@ public class RagIndexServiceImpl implements RagIndexService {
             redisDocumentChunkRepository.saveAll(entities);
             log.info("已写入Redis分块记录数: {} (fileId={})", entities.size(), fileId);
             uploadedFileMapper.updateStatus(fileId, UploadedFile.FileStatus.COMPLETED.name());
+            file.setStatus(UploadedFile.FileStatus.COMPLETED);
+            fileProcessingNotificationService.notifyStatus(
+                    file,
+                    UploadedFile.FileStatus.COMPLETED,
+                    "文件向量生成并写入Redis成功");
         } catch (Exception e) {
             log.error("索引文件失败: {}", fileId, e);
             uploadedFileMapper.updateStatus(fileId, UploadedFile.FileStatus.FAILED.name());
+            file.setStatus(UploadedFile.FileStatus.FAILED);
+            fileProcessingNotificationService.notifyStatus(
+                    file,
+                    UploadedFile.FileStatus.FAILED,
+                    "文件处理失败，请稍后重试");
         }
     }
 

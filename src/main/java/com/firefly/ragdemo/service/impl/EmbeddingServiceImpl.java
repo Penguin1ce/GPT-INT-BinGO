@@ -6,8 +6,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,10 +20,7 @@ public class EmbeddingServiceImpl implements EmbeddingService {
     public List<Double> embed(String text) {
         try {
             float[] embedding = embeddingModel.embed(text);
-            return java.util.stream.IntStream.range(0, embedding.length)
-                    .mapToDouble(i -> embedding[i])
-                    .boxed()
-                    .collect(Collectors.toList());
+            return toDoubleList(embedding);
         } catch (Exception e) {
             log.error("Embedding failed", e);
             throw new RuntimeException("Embedding失败: " + e.getMessage());
@@ -34,10 +29,24 @@ public class EmbeddingServiceImpl implements EmbeddingService {
 
     @Override
     public List<List<Double>> embedBatch(List<String> texts) {
-        List<List<Double>> result = new ArrayList<>();
-        for (String t : texts) {
-            result.add(embed(t));
+        if (texts == null || texts.isEmpty()) {
+            return List.of();
         }
-        return result;
+        try {
+            List<float[]> embeddings = embeddingModel.embed(texts);
+            return embeddings.stream()
+                    .map(this::toDoubleList)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Batch embedding failed", e);
+            throw new RuntimeException("Embedding批处理失败: " + e.getMessage());
+        }
     }
-} 
+
+    private List<Double> toDoubleList(float[] embedding) {
+        return java.util.stream.IntStream.range(0, embedding.length)
+                .mapToDouble(i -> embedding[i])
+                .boxed()
+                .collect(Collectors.toList());
+    }
+}
