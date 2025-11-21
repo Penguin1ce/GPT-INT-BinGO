@@ -3,6 +3,9 @@ package com.firefly.ragdemo.controller;
 import com.firefly.ragdemo.DTO.ChatRequest;
 import com.firefly.ragdemo.VO.ApiResponse;
 import com.firefly.ragdemo.VO.ChatResponseVO;
+import com.firefly.ragdemo.messaging.ChatMessageQueueService;
+import com.firefly.ragdemo.messaging.ChatMessagingProperties;
+import com.firefly.ragdemo.messaging.ChatQueueTicket;
 import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
 import com.firefly.ragdemo.service.ChatService;
 import jakarta.validation.Valid;
@@ -13,17 +16,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import reactor.core.publisher.Flux;
 import reactor.core.Disposable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -35,6 +42,8 @@ import org.springframework.security.concurrent.DelegatingSecurityContextExecutor
 public class ChatController {
 
     private final ChatService chatService;
+    private final ChatMessageQueueService chatMessageQueueService;
+    private final ChatMessagingProperties chatMessagingProperties;
     private final ExecutorService executorService =
         new DelegatingSecurityContextExecutorService(Executors.newCachedThreadPool());
     private final ScheduledExecutorService heartbeatScheduler =
@@ -49,7 +58,7 @@ public class ChatController {
     private static final long HEARTBEAT_INTERVAL_MS = 15000L;
 
     @PostMapping("/ask")
-    public ResponseEntity<?> ask(@Valid @RequestBody ChatRequest request,
+    public Object ask(@Valid @RequestBody ChatRequest request,
             BindingResult bindingResult,
             @AuthenticationPrincipal CustomUserPrincipal principal) {
 
@@ -223,17 +232,53 @@ public class ChatController {
                 .body(emitter);
     }
 
-    private ResponseEntity<ApiResponse<ChatResponseVO>> handleNormalResponse(ChatRequest request, String userId) {
-        try {
-            ChatResponseVO response = chatService.chat(request, userId);
-            ApiResponse<ChatResponseVO> apiResponse = ApiResponse.success("对话完成", response);
-            return ResponseEntity.ok(apiResponse);
+    private DeferredResult<ResponseEntity<ApiResponse<ChatResponseVO>>> handleNormalResponse(ChatRequest request,
+            String userId) {
+        DeferredResult<ResponseEntity<ApiResponse<ChatResponseVO>>> deferredResult =
+                new DeferredResult<>(chatMessagingProperties.getRequestTimeoutMs() + 5000L);
 
-        } catch (Exception e) {
-            log.error("对话请求处理失败", e);
-            return ResponseEntity.status(500)
-                    .body(ApiResponse.error("对话请求失败"));
-        }
+        ChatQueueTicket ticket = chatMessageQueueService.submit(request, userId);
+        CompletableFuture<ChatResponseVO> future = ticket.future()
+                .orTimeout(chatMessagingProperties.getRequestTimeoutMs(), TimeUnit.MILLISECONDS);
+
+        future.thenAccept(response -> {
+            if (!deferredResult.isSetOrExpired()) {
+                deferredResult.setResult(ResponseEntity.ok(ApiResponse.success("对话完成", response)));
+            }
+        }).exceptionally(ex -> {
+            Throwable actual =
+                    (ex instanceof CompletionException && ex.getCause() != null) ? ex.getCause() : ex;
+            int status = (actual instanceof TimeoutException) ? 504 : 500;
+            String message;
+            if (actual instanceof TimeoutException) {
+                message = "AI处理超时";
+            } else {
+                message = actual.getMessage() == null ? "对话请求失败" : actual.getMessage();
+            }
+            if (!deferredResult.isSetOrExpired()) {
+                deferredResult.setResult(ResponseEntity.status(status)
+                        .body(ApiResponse.error(message, status)));
+            }
+            return null;
+        });
+
+        deferredResult.onTimeout(() -> {
+            log.warn("请求处理超时，requestId={}", ticket.requestId());
+            if (!deferredResult.isSetOrExpired()) {
+                deferredResult.setErrorResult(ResponseEntity.status(504)
+                        .body(ApiResponse.error("AI处理超时", 504)));
+            }
+        });
+
+        deferredResult.onError(error -> {
+            log.error("DeferredResult执行失败", error);
+            if (!deferredResult.isSetOrExpired()) {
+                deferredResult.setErrorResult(ResponseEntity.status(500)
+                        .body(ApiResponse.error("对话请求失败", 500)));
+            }
+        });
+
+        return deferredResult;
     }
 
     private ScheduledFuture<?> scheduleHeartbeat(SseEmitter emitter,

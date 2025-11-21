@@ -17,6 +17,11 @@
 - 多轮对话支持
 - 令牌使用统计
 
+### 🚀 消息队列与异步处理
+- RabbitMQ 解耦非流式 AI 请求，避免主线程阻塞
+- `ChatMessageQueueService` 将对话任务写入队列，后台监听器批量消费
+- 支持并发调度与削峰填谷，提升整体吞吐量
+
 ### 📁 文件管理
 - 文件上传（支持txt、md、pdf、docx）
 - 文件列表查询
@@ -30,14 +35,16 @@
 - 数据库事务管理
 - 安全配置
 - RAG向量知识库：基于Redis分用户存储
+- RabbitMQ 消息队列：AI 请求异步写入/消费，提升吞吐
 
 ## 技术栈
 
 - **Spring Boot 3.5.5** - 主框架
 - **Spring Security** - 安全认证
-- **Spring Data JPA** - 数据库操作
+- **MyBatis** - 数据库访问
 - **PostgreSQL** - 主数据库
 - **Redis** - 缓存 + RAG向量存储
+- **RabbitMQ** - 消息队列（解耦 + 削峰 + 异步处理）
 - **JWT** - 令牌认证
 - **Spring AI** - OpenAI集成
 - **Lombok** - 代码简化

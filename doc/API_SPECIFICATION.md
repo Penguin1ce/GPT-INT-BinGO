@@ -43,16 +43,16 @@ Authorization: Bearer <access_token>
 
 ## HTTP状态码说明
 
-| 状态码 | 含义 | 使用场景 |
-|-------|------|----------|
-| 200 | 成功 | 正常请求成功 |
-| 201 | 创建成功 | 用户注册成功 |
-| 400 | 请求错误 | 参数验证失败 |
-| 401 | 未认证 | Token无效或过期 |
-| 403 | 权限不足 | 用户被禁用 |
-| 404 | 资源不存在 | 用户不存在 |
-| 409 | 冲突 | 用户名/邮箱已存在 |
-| 500 | 服务器错误 | 内部错误 |
+| 状态码 | 含义       | 使用场景          |
+| ------ | ---------- | ----------------- |
+| 200    | 成功       | 正常请求成功      |
+| 201    | 创建成功   | 用户注册成功      |
+| 400    | 请求错误   | 参数验证失败      |
+| 401    | 未认证     | Token无效或过期   |
+| 403    | 权限不足   | 用户被禁用        |
+| 404    | 资源不存在 | 用户不存在        |
+| 409    | 冲突       | 用户名/邮箱已存在 |
+| 500    | 服务器错误 | 内部错误          |
 
 ---
 
@@ -612,9 +612,14 @@ spring:
     password: your-password
   
   ai:
-    openai:
-      api-key: your-openai-api-key
-      base-url: https://api.openai.com
+    ollama:
+      base-url: http://localhost:11434
+      chat:
+        options:
+          model: qwen3
+      embedding:
+        options:
+          model: bge-m3
 
 app:
   jwt:
@@ -630,7 +635,7 @@ app:
 - **API版本**: v1.0
 - **文档版本**: 2024-01-01  
 - **Spring Boot版本**: 3.5.5
-- **支持的OpenAI模型**: gpt-4o, gpt-3.5-turbo等
+- **支持的Ollama模型**: gpt-oss（可根据需要扩展）
 
 ---
 

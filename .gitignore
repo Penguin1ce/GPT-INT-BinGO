@@ -43,7 +43,8 @@ build/
 Thumbnail.db
 
 application-dev.yaml
-
+application-devapi.yaml
+application-local.yaml
 /uploads/
 
 # Log files
