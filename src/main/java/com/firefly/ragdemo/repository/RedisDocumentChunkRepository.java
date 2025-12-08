@@ -169,6 +169,36 @@ public class RedisDocumentChunkRepository {
     }
 
     /**
+     * 按文件ID获取分块
+     */
+    public List<DocumentChunk> findByFileId(String fileId) {
+        if (fileId == null || fileId.isBlank()) {
+            return Collections.emptyList();
+        }
+        Set<String> chunkIds = stringRedisTemplate.opsForSet().members(fileChunksKey(fileId));
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Object> results = stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            for (String chunkId : chunkIds) {
+                connection.get(chunkKey(chunkId).getBytes());
+            }
+            return null;
+        });
+        List<DocumentChunk> chunks = new ArrayList<>(results.size());
+        for (Object result : results) {
+            if (result == null) {
+                continue;
+            }
+            DocumentChunk chunk = deserialize(result.toString());
+            if (chunk != null) {
+                chunks.add(chunk);
+            }
+        }
+        return chunks;
+    }
+
+    /**
      * 删除指定文件的所有chunks，使用Pipeline批量操作
      */
     public void deleteByFileIdAndUser(String fileId, String userId, String kbId) {

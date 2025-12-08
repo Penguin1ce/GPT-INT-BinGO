@@ -3,6 +3,7 @@ package com.firefly.ragdemo.service.impl;
 import com.firefly.ragdemo.entity.DocumentChunk;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.mapper.UploadedFileMapper;
+import com.firefly.ragdemo.messaging.DocumentChunkSyncProducer;
 import com.firefly.ragdemo.repository.RedisDocumentChunkRepository;
 import com.firefly.ragdemo.service.EmbeddingService;
 import com.firefly.ragdemo.service.FileProcessingNotificationService;
@@ -34,6 +35,7 @@ public class RagIndexServiceImpl implements RagIndexService {
     private final EmbeddingService embeddingService;
     private final RedisDocumentChunkRepository redisDocumentChunkRepository;
     private final FileProcessingNotificationService fileProcessingNotificationService;
+    private final DocumentChunkSyncProducer documentChunkSyncProducer;
 
     private final Tika tika = new Tika();
 
@@ -88,6 +90,7 @@ public class RagIndexServiceImpl implements RagIndexService {
             }
             redisDocumentChunkRepository.saveAll(entities);
             log.info("已写入Redis分块记录数: {} (fileId={})", entities.size(), fileId);
+            documentChunkSyncProducer.publish(file.getId(), file.getUserId(), file.getKbId());
             uploadedFileMapper.updateStatus(fileId, UploadedFile.FileStatus.COMPLETED.name());
             file.setStatus(UploadedFile.FileStatus.COMPLETED);
             fileProcessingNotificationService.notifyStatus(

@@ -3,6 +3,7 @@ package com.firefly.ragdemo.service.impl;
 import com.firefly.ragdemo.VO.FileProcessingNotification;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.service.FileProcessingNotificationService;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -26,14 +27,14 @@ public class FileProcessingNotificationServiceImpl implements FileProcessingNoti
     public SseEmitter subscribe(String userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         emittersByUser.computeIfAbsent(userId, key -> new CopyOnWriteArrayList<>()).add(emitter);
-        emitter.onTimeout(() -> removeEmitter(userId, emitter));
-        emitter.onCompletion(() -> removeEmitter(userId, emitter));
-        emitter.onError(ex -> removeEmitter(userId, emitter));
+        emitter.onTimeout(() -> completeEmitter(userId, emitter));
+        emitter.onCompletion(() -> completeEmitter(userId, emitter));
+        emitter.onError(ex -> completeEmitter(userId, emitter));
         try {
             emitter.send(SseEmitter.event().name("connected").data("listening"));
         } catch (IOException e) {
             log.debug("SSE连接初始化失败: {}", e.getMessage());
-            removeEmitter(userId, emitter);
+            completeEmitter(userId, emitter);
         }
         return emitter;
     }
@@ -55,12 +56,25 @@ public class FileProcessingNotificationServiceImpl implements FileProcessingNoti
                 emitter.send(SseEmitter.event().name("file-processing").data(notification));
             } catch (Exception e) {
                 log.debug("推送给用户{}失败: {}", file.getUserId(), e.getMessage());
-                removeEmitter(file.getUserId(), emitter);
+                completeEmitter(file.getUserId(), emitter);
             }
         }
     }
 
-    private void removeEmitter(String userId, SseEmitter emitter) {
+    @PreDestroy
+    public void shutdownEmitters() {
+        emittersByUser.forEach((userId, emitters) -> emitters.forEach(emitter -> completeEmitter(userId, emitter)));
+        emittersByUser.clear();
+    }
+
+    private void completeEmitter(String userId, SseEmitter emitter) {
+        if (emitter != null) {
+            try {
+                emitter.complete();
+            } catch (Exception e) {
+                log.debug("关闭用户{}的SSE连接异常: {}", userId, e.getMessage());
+            }
+        }
         CopyOnWriteArrayList<SseEmitter> emitters = emittersByUser.get(userId);
         if (emitters == null) {
             return;
