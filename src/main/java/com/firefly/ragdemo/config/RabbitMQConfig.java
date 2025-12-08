@@ -1,6 +1,8 @@
 package com.firefly.ragdemo.config;
 
 import com.firefly.ragdemo.messaging.ChatMessagingProperties;
+import com.firefly.ragdemo.messaging.ChunkSyncMessagingProperties;
+import com.firefly.ragdemo.messaging.ChatSessionMessagingProperties;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -19,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 @EnableRabbit
-@EnableConfigurationProperties(ChatMessagingProperties.class)
+@EnableConfigurationProperties({ChatMessagingProperties.class, ChunkSyncMessagingProperties.class, ChatSessionMessagingProperties.class})
 public class RabbitMQConfig {
 
     @Bean
@@ -38,6 +40,44 @@ public class RabbitMQConfig {
                                  ChatMessagingProperties properties) {
         return BindingBuilder.bind(aiChatQueue)
                 .to(aiChatExchange)
+                .with(properties.getRoutingKey());
+    }
+
+    @Bean
+    public Queue chunkSyncQueue(ChunkSyncMessagingProperties properties) {
+        return QueueBuilder.durable(properties.getQueue()).build();
+    }
+
+    @Bean
+    public DirectExchange chunkSyncExchange(ChunkSyncMessagingProperties properties) {
+        return new DirectExchange(properties.getExchange());
+    }
+
+    @Bean
+    public Binding chunkSyncBinding(Queue chunkSyncQueue,
+                                    DirectExchange chunkSyncExchange,
+                                    ChunkSyncMessagingProperties properties) {
+        return BindingBuilder.bind(chunkSyncQueue)
+                .to(chunkSyncExchange)
+                .with(properties.getRoutingKey());
+    }
+
+    @Bean
+    public Queue chatSessionQueue(ChatSessionMessagingProperties properties) {
+        return QueueBuilder.durable(properties.getQueue()).build();
+    }
+
+    @Bean
+    public DirectExchange chatSessionExchange(ChatSessionMessagingProperties properties) {
+        return new DirectExchange(properties.getExchange());
+    }
+
+    @Bean
+    public Binding chatSessionBinding(Queue chatSessionQueue,
+                                      DirectExchange chatSessionExchange,
+                                      ChatSessionMessagingProperties properties) {
+        return BindingBuilder.bind(chatSessionQueue)
+                .to(chatSessionExchange)
                 .with(properties.getRoutingKey());
     }
 

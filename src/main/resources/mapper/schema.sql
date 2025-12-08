@@ -166,3 +166,33 @@ SET @sql_idx_chunk_kb := IF(
 PREPARE stmt_idx_chunk_kb FROM @sql_idx_chunk_kb;
 EXECUTE stmt_idx_chunk_kb;
 DEALLOCATE PREPARE stmt_idx_chunk_kb;
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id VARCHAR(64) PRIMARY KEY,
+    user_id VARCHAR(64) NOT NULL,
+    title VARCHAR(255),
+    first_message TEXT,
+    model VARCHAR(100),
+    message_count INT DEFAULT 0,
+    last_message_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_chat_session_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_chat_session_user (user_id),
+    INDEX idx_chat_session_last (last_message_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id VARCHAR(64) PRIMARY KEY,
+    session_id VARCHAR(64) NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    content MEDIUMTEXT,
+    seq INT NOT NULL,
+    model VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_chat_msg_session FOREIGN KEY (session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_msg_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_chat_msg_session (session_id, seq),
+    INDEX idx_chat_msg_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

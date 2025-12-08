@@ -19,6 +19,9 @@ public class ChatRequest {
 
     private String langid;
 
+    // 会话ID，由前端生成或后端回传
+    private String sessionId;
+
     @Data
     public static class ChatMessage {
         @NotNull(message = "角色不能为空")

@@ -9,6 +9,8 @@ public class ChatResponseVO {
 
     private String response;
     private UsageVO usage;
+    private String sessionId;
+    private String sessionTitle;
 
     @Data
     @Builder

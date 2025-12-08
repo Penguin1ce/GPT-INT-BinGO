@@ -3,11 +3,18 @@ package com.firefly.ragdemo.controller;
 import com.firefly.ragdemo.DTO.ChatRequest;
 import com.firefly.ragdemo.VO.ApiResponse;
 import com.firefly.ragdemo.VO.ChatResponseVO;
+import com.firefly.ragdemo.VO.ChatSessionVO;
+import com.firefly.ragdemo.VO.ChatMessageVO;
+import com.firefly.ragdemo.entity.ChatSession;
+import com.firefly.ragdemo.entity.ChatMessageRecord;
 import com.firefly.ragdemo.messaging.ChatMessageQueueService;
 import com.firefly.ragdemo.messaging.ChatMessagingProperties;
 import com.firefly.ragdemo.messaging.ChatQueueTicket;
+import com.firefly.ragdemo.messaging.ChatHistoryPersistPayload;
+import com.firefly.ragdemo.messaging.ChatHistoryQueueProducer;
 import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
 import com.firefly.ragdemo.service.ChatService;
+import com.firefly.ragdemo.service.ChatSessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,11 +25,13 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import java.time.Instant;
 import reactor.core.publisher.Flux;
 import reactor.core.Disposable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -32,9 +41,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.UUID;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
+import org.springframework.util.StringUtils;
 
 @RestController
 @RequiredArgsConstructor
@@ -44,6 +55,8 @@ public class ChatController {
     private final ChatService chatService;
     private final ChatMessageQueueService chatMessageQueueService;
     private final ChatMessagingProperties chatMessagingProperties;
+    private final ChatSessionService chatSessionService;
+    private final ChatHistoryQueueProducer chatHistoryQueueProducer;
     private final ExecutorService executorService =
         new DelegatingSecurityContextExecutorService(Executors.newCachedThreadPool());
     private final ScheduledExecutorService heartbeatScheduler =
@@ -76,10 +89,13 @@ public class ChatController {
 
         try {
             String userId = principal.getUserId();
+            String sessionId = resolveSessionId(request);
+            String sessionTitle = deriveSessionTitle(request);
+            request.setSessionId(sessionId);
 
             if (Boolean.TRUE.equals(request.getStream())) {
                 // 流式响应
-                return handleStreamResponse(request, userId);
+                return handleStreamResponse(request, userId, sessionId, sessionTitle);
             } else {
                 // 非流式响应
                 return handleNormalResponse(request, userId);
@@ -92,14 +108,78 @@ public class ChatController {
         }
     }
 
-    private ResponseEntity<SseEmitter> handleStreamResponse(ChatRequest request, String userId) {
+    @GetMapping("/chat/sessions")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> listSessions(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int limit,
+            @AuthenticationPrincipal CustomUserPrincipal principal) {
+        try {
+            String userId = principal.getUserId();
+            List<ChatSession> sessions = chatSessionService.listSessions(userId, page, limit);
+            long total = chatSessionService.countSessions(userId);
+            List<ChatSessionVO> items = sessions.stream()
+                    .map(this::toSessionVO)
+                    .collect(Collectors.toList());
+            Map<String, Object> pagination = Map.of(
+                    "page", page,
+                    "limit", limit,
+                    "total", total,
+                    "totalPages", limit > 0 ? (int) Math.ceil((double) total / (double) limit) : 1
+            );
+            Map<String, Object> data = Map.of(
+                    "sessions", items,
+                    "pagination", pagination
+            );
+            return ResponseEntity.ok(ApiResponse.success("获取会话列表成功", data));
+        } catch (Exception e) {
+            log.error("获取会话列表失败 for user {}: {}", principal.getUserId(), e.getMessage(), e);
+            return ResponseEntity.status(500).body(ApiResponse.error("获取会话列表失败"));
+        }
+    }
+
+    @GetMapping("/chat/sessions/{sessionId}/messages")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSessionMessages(
+            @PathVariable String sessionId,
+            @RequestParam(defaultValue = "200") int limit,
+            @AuthenticationPrincipal CustomUserPrincipal principal) {
+        try {
+            String userId = principal.getUserId();
+            List<ChatMessageRecord> records = chatSessionService.listMessages(sessionId, userId, limit);
+            List<ChatMessageVO> messages = records.stream()
+                    .map(this::toMessageVO)
+                    .collect(Collectors.toList());
+            List<ChatRequest.ChatMessage> history = chatSessionService.buildHistory(sessionId, userId, limit);
+            Map<String, Object> data = Map.of(
+                    "messages", messages,
+                    "history", history
+            );
+            return ResponseEntity.ok(ApiResponse.success("获取会话历史成功", data));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(403).body(ApiResponse.error(e.getMessage(), 403));
+        } catch (Exception e) {
+            log.error("获取会话历史失败 sessionId={}, userId={}", sessionId, principal.getUserId(), e);
+            return ResponseEntity.status(500).body(ApiResponse.error("获取会话历史失败"));
+        }
+    }
+
+    private ResponseEntity<SseEmitter> handleStreamResponse(ChatRequest request, String userId, String sessionId, String sessionTitle) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
+        String userMessage = extractLatestUserMessage(request);
+        StringBuilder assistantBuilder = new StringBuilder();
 
         // 通过原子标志跟踪是否已完成，避免完成后继续发送
         AtomicBoolean isCompleted = new AtomicBoolean(false);
         // 订阅引用，便于在完成/出错时取消
         final Disposable[] subscriptionRef = new Disposable[1];
         final ScheduledFuture<?>[] heartbeatRef = new ScheduledFuture<?>[1];
+
+        try {
+            String safeTitle = escapeJson(sessionTitle);
+            emitter.send(SseEmitter.event().name("session")
+                    .data("{\"sessionId\":\"" + sessionId + "\",\"title\":\"" + safeTitle + "\"}"));
+        } catch (Exception sendSessionError) {
+            log.warn("发送会话信息失败: {}", sendSessionError.getMessage());
+        }
 
         // 设置完成和超时回调
         emitter.onCompletion(() -> {
@@ -150,6 +230,7 @@ public class ChatController {
                                 // 发送SSE格式的数据，仅发送JSON在data行
                                 String payload = chunk.replace("\"", "\\\"").replace("\n", "\\n");
                                 String json = "{\"message\":{\"content\":\"" + payload + "\"}}";
+                                assistantBuilder.append(chunk);
                                 emitter.send(SseEmitter.event().data(json));
                             } catch (Exception e) {
                                 log.error("发送SSE数据失败", e);
@@ -189,6 +270,8 @@ public class ChatController {
                                 try {
                                     String json = "{\"done\":true}";
                                     emitter.send(SseEmitter.event().data(json));
+                                    publishHistory(sessionId, userId, sessionTitle, userMessage,
+                                            assistantBuilder.toString(), request.getModel());
                                 } catch (Exception e) {
                                     log.error("发送完成信号失败", e);
                                 } finally {
@@ -279,6 +362,107 @@ public class ChatController {
         });
 
         return deferredResult;
+    }
+
+    private String resolveSessionId(ChatRequest request) {
+        if (request != null && StringUtils.hasText(request.getSessionId())) {
+            return request.getSessionId();
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    private String deriveSessionTitle(ChatRequest request) {
+        if (request == null || request.getMessages() == null) {
+            return null;
+        }
+        for (ChatRequest.ChatMessage msg : request.getMessages()) {
+            if (msg != null && "user".equalsIgnoreCase(msg.getRole()) && StringUtils.hasText(msg.getContent())) {
+                String trimmed = msg.getContent().strip();
+                return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+            }
+        }
+        return null;
+    }
+
+    private ChatSessionVO toSessionVO(ChatSession session) {
+        if (session == null) {
+            return null;
+        }
+        return ChatSessionVO.builder()
+                .sessionId(session.getId())
+                .title(session.getTitle())
+                .firstMessage(session.getFirstMessage())
+                .model(session.getModel())
+                .messageCount(session.getMessageCount())
+                .lastMessageAt(session.getLastMessageAt())
+                .createdAt(session.getCreatedAt())
+                .build();
+    }
+
+    private ChatMessageVO toMessageVO(ChatMessageRecord record) {
+        if (record == null) {
+            return null;
+        }
+        return ChatMessageVO.builder()
+                .sessionId(record.getSessionId())
+                .role(record.getRole())
+                .content(record.getContent())
+                .seq(record.getSeq())
+                .createdAt(record.getCreatedAt())
+                .build();
+    }
+
+    private String extractLatestUserMessage(ChatRequest request) {
+        if (request == null || request.getMessages() == null) {
+            return null;
+        }
+        for (int i = request.getMessages().size() - 1; i >= 0; i--) {
+            ChatRequest.ChatMessage msg = request.getMessages().get(i);
+            if (msg != null && "user".equalsIgnoreCase(msg.getRole()) && StringUtils.hasText(msg.getContent())) {
+                return msg.getContent();
+            }
+        }
+        return null;
+    }
+
+    private void publishHistory(String sessionId,
+                                String userId,
+                                String sessionTitle,
+                                String userMessage,
+                                String assistantReply,
+                                String model) {
+        if (!StringUtils.hasText(sessionId) || !StringUtils.hasText(userMessage)) {
+            return;
+        }
+        List<ChatHistoryPersistPayload.Message> messages = new java.util.ArrayList<>();
+        messages.add(ChatHistoryPersistPayload.Message.builder()
+                .role("user")
+                .content(userMessage)
+                .createdAt(Instant.now())
+                .build());
+        if (StringUtils.hasText(assistantReply)) {
+            messages.add(ChatHistoryPersistPayload.Message.builder()
+                    .role("assistant")
+                    .content(assistantReply)
+                    .createdAt(Instant.now())
+                    .build());
+        }
+        ChatHistoryPersistPayload payload = ChatHistoryPersistPayload.builder()
+                .sessionId(sessionId)
+                .userId(userId)
+                .sessionTitle(StringUtils.hasText(sessionTitle) ? sessionTitle : userMessage)
+                .model(model)
+                .createdAt(Instant.now())
+                .messages(messages)
+                .build();
+        chatHistoryQueueProducer.publish(payload);
+    }
+
+    private String escapeJson(String input) {
+        if (input == null) {
+            return "";
+        }
+        return input.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
     }
 
     private ScheduledFuture<?> scheduleHeartbeat(SseEmitter emitter,

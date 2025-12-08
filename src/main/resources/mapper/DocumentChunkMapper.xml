@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.firefly.ragdemo.mapper.DocumentChunkMapper">
+
+    <resultMap id="DocumentChunkResult" type="com.firefly.ragdemo.entity.DocumentChunk">
+        <id property="id" column="id" />
+        <result property="userId" column="user_id" />
+        <result property="fileId" column="file_id" />
+        <result property="kbId" column="kb_id" />
+        <result property="chunkIndex" column="chunk_index" />
+        <result property="content" column="content" />
+        <result property="embeddingJson" column="embedding" />
+        <result property="createdAt" column="created_at" />
+    </resultMap>
+
+    <insert id="batchInsertIgnore" parameterType="map">
+        INSERT IGNORE INTO document_chunks (
+            id, user_id, file_id, kb_id, chunk_index, content, embedding, created_at
+        ) VALUES
+        <foreach collection="chunks" item="item" separator=",">
+            (
+                #{item.id},
+                #{item.userId},
+                #{item.fileId},
+                #{item.kbId},
+                #{item.chunkIndex},
+                #{item.content},
+                CAST(#{item.embeddingJson} AS JSON),
+                #{item.createdAt}
+            )
+        </foreach>
+    </insert>
+</mapper>

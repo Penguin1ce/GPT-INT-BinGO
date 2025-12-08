@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.firefly.ragdemo.mapper.ChatMessageRecordMapper">
+
+    <resultMap id="ChatMessageResult" type="com.firefly.ragdemo.entity.ChatMessageRecord">
+        <id property="id" column="id" />
+        <result property="sessionId" column="session_id" />
+        <result property="userId" column="user_id" />
+        <result property="role" column="role" />
+        <result property="content" column="content" />
+        <result property="seq" column="seq" />
+        <result property="model" column="model" />
+        <result property="createdAt" column="created_at" />
+    </resultMap>
+
+    <select id="findBySession" resultMap="ChatMessageResult">
+        SELECT * FROM chat_messages
+        WHERE session_id = #{sessionId}
+          AND user_id = #{userId}
+        ORDER BY seq ASC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="batchInsert" parameterType="map">
+        INSERT INTO chat_messages (
+            id, session_id, user_id, role, content, seq, model, created_at
+        ) VALUES
+        <foreach collection="messages" item="item" separator=",">
+            (
+                #{item.id},
+                #{item.sessionId},
+                #{item.userId},
+                #{item.role},
+                #{item.content},
+                #{item.seq},
+                #{item.model},
+                #{item.createdAt}
+            )
+        </foreach>
+    </insert>
+</mapper>

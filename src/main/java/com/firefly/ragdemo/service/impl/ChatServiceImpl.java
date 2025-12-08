@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.util.List;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -35,10 +36,13 @@ public class ChatServiceImpl implements ChatService {
                     .completionTokens(estimateTokens(content))
                     .totalTokens(estimateTokens(finalPrompt) + estimateTokens(content))
                     .build();
+            String title = deriveSessionTitle(request);
 
             return ChatResponseVO.builder()
                     .response(content)
                     .usage(usageVO)
+                    .sessionId(request.getSessionId())
+                    .sessionTitle(title)
                     .build();
 
         } catch (Exception e) {
@@ -79,6 +83,7 @@ public class ChatServiceImpl implements ChatService {
                 + "- 专业性：解释要准确，必要时给出时间/空间复杂度与边界条件。\n"
                 + "- 示例代码：默认使用 C++17，包含必要的头文件与 main 函数或可直接调用的片段。\n"
                 + "- 结构化表达：先给出结论，再给步骤/要点；必要时给简短示例。\n"
+                + "- 严格按照markdown的格式编写返回值，示例代码严格以``` cpp 开头方便前端识别。\n"
                 + "- 安全与诚信：不编造不存在的库/接口；不确定时请先澄清需求或说明限制。\n"
                 + languageDirective
                 + "\n- 交互方式：若问题含糊，请用 1-2 句澄清提问再继续。";
@@ -142,4 +147,17 @@ public class ChatServiceImpl implements ChatService {
         sb.append("\n请在理解上述上下文的基础上，回答最后一条用户消息。");
         return sb.toString();
     }
-} 
+
+    private String deriveSessionTitle(ChatRequest request) {
+        if (request == null || request.getMessages() == null) {
+            return null;
+        }
+        for (ChatRequest.ChatMessage msg : request.getMessages()) {
+            if (msg != null && "user".equalsIgnoreCase(msg.getRole()) && StringUtils.hasText(msg.getContent())) {
+                String trimmed = msg.getContent().strip();
+                return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+            }
+        }
+        return null;
+    }
+}
