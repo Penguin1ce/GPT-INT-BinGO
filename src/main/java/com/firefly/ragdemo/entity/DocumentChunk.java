@@ -19,11 +19,13 @@ public class DocumentChunk {
 
     private String fileId;
 
+    private String kbId;
+
     private Integer chunkIndex;
 
     private String content;
 
-    // 将embedding以JSON数组字符串形式存储（PostgreSQL使用jsonb）
+    // 将embedding以JSON数组字符串形式存储（MySQL可用JSON/TEXT字段）
     private String embeddingJson;
 
     private LocalDateTime createdAt;

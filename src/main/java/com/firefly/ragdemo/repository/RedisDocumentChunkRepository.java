@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -26,6 +27,7 @@ public class RedisDocumentChunkRepository {
 
     private static final String USER_CHUNKS_PREFIX = "rag:user:";
     private static final String FILE_CHUNKS_PREFIX = "rag:file:";
+    private static final String KB_CHUNKS_PREFIX = "rag:kb:";
     private static final String CHUNK_PREFIX = "rag:chunk:";
 
     /**
@@ -65,6 +67,12 @@ public class RedisDocumentChunkRepository {
                 if (chunk.getFileId() != null) {
                     byte[] fileChunksKeyBytes = fileChunksKey(chunk.getFileId()).getBytes();
                     connection.sAdd(fileChunksKeyBytes, chunkIdBytes);
+                }
+
+                // 4. 添加到知识库ZSet（支持公共/私人检索）
+                if (chunk.getKbId() != null && !chunk.getKbId().isBlank()) {
+                    byte[] kbChunksKeyBytes = kbChunksKey(chunk.getKbId()).getBytes();
+                    connection.zAdd(kbChunksKeyBytes, score, chunkIdBytes);
                 }
             }
             return null;
@@ -120,9 +128,50 @@ public class RedisDocumentChunkRepository {
     }
 
     /**
+     * 按知识库集合批量查询分块，每个知识库各取指定数量的候选
+     */
+    public List<DocumentChunk> findByKnowledgeBases(List<String> kbIds, int candidatePerKb) {
+        if (kbIds == null || kbIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int limit = candidatePerKb > 0 ? candidatePerKb : 50;
+        List<DocumentChunk> all = new ArrayList<>();
+        Set<String> seenChunkIds = new HashSet<>();
+        for (String kbId : kbIds) {
+            if (kbId == null || kbId.isBlank()) {
+                continue;
+            }
+            Set<String> chunkIds = stringRedisTemplate.opsForZSet()
+                    .reverseRange(kbChunksKey(kbId), 0, limit - 1);
+            if (chunkIds == null || chunkIds.isEmpty()) {
+                continue;
+            }
+            List<Object> results = stringRedisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+                for (String chunkId : chunkIds) {
+                    if (chunkId != null) {
+                        connection.get(chunkKey(chunkId).getBytes());
+                    }
+                }
+                return null;
+            });
+            for (int i = 0; i < results.size(); i++) {
+                Object result = results.get(i);
+                if (result == null) {
+                    continue;
+                }
+                DocumentChunk chunk = deserialize(result.toString());
+                if (chunk != null && chunk.getId() != null && seenChunkIds.add(chunk.getId())) {
+                    all.add(chunk);
+                }
+            }
+        }
+        return all;
+    }
+
+    /**
      * 删除指定文件的所有chunks，使用Pipeline批量操作
      */
-    public void deleteByFileIdAndUser(String fileId, String userId) {
+    public void deleteByFileIdAndUser(String fileId, String userId, String kbId) {
         if (fileId == null || fileId.isBlank()) {
             return;
         }
@@ -145,6 +194,11 @@ public class RedisDocumentChunkRepository {
                     byte[] userChunksKeyBytes = userChunksKey(userId).getBytes();
                     byte[] chunkIdBytes = chunkId.getBytes();
                     connection.zRem(userChunksKeyBytes, chunkIdBytes);
+                }
+
+                if (kbId != null && !kbId.isBlank()) {
+                    byte[] kbChunksKeyBytes = kbChunksKey(kbId).getBytes();
+                    connection.zRem(kbChunksKeyBytes, chunkId.getBytes());
                 }
             }
 
@@ -181,6 +235,10 @@ public class RedisDocumentChunkRepository {
 
     private String fileChunksKey(String fileId) {
         return FILE_CHUNKS_PREFIX + fileId + ":chunks";
+    }
+
+    private String kbChunksKey(String kbId) {
+        return KB_CHUNKS_PREFIX + kbId + ":chunks";
     }
 
     private String chunkKey(String chunkId) {

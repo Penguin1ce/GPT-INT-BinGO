@@ -79,6 +79,7 @@ public class RagIndexServiceImpl implements RagIndexService {
                         .id(UUID.randomUUID().toString())
                         .userId(file.getUserId())
                         .fileId(file.getId())
+                        .kbId(file.getKbId())
                         .chunkIndex(i)
                         .content(chunks.get(i))
                         .embeddingJson(json)

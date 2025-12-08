@@ -27,6 +27,8 @@ public class UploadedFile {
 
     private LocalDateTime uploadTime;
 
+    private String kbId;
+
     @Builder.Default
     private FileStatus status = FileStatus.PROCESSING;
 

@@ -10,6 +10,7 @@
         <result property="fileSize" column="file_size" />
         <result property="fileType" column="file_type" />
         <result property="uploadTime" column="upload_time" />
+        <result property="kbId" column="kb_id" />
         <result property="status" column="status" />
     </resultMap>
 
@@ -30,9 +31,9 @@
 
     <insert id="insert" parameterType="com.firefly.ragdemo.entity.UploadedFile">
         INSERT INTO uploaded_files (
-            id, user_id, filename, file_path, file_size, file_type, upload_time, status
+            id, user_id, filename, file_path, file_size, file_type, upload_time, status, kb_id
         ) VALUES (
-            #{id}, #{userId}, #{filename}, #{filePath}, #{fileSize}, #{fileType}, #{uploadTime}, #{status}
+            #{id}, #{userId}, #{filename}, #{filePath}, #{fileSize}, #{fileType}, #{uploadTime}, #{status}, #{kbId}
         )
     </insert>
 
@@ -48,6 +49,7 @@
             file_size = #{fileSize},
             file_type = #{fileType},
             upload_time = #{uploadTime},
+            kb_id = #{kbId},
             status = #{status}
         WHERE id = #{id}
     </update>

@@ -13,6 +13,8 @@ public interface FileService {
 
     FileVO uploadFile(MultipartFile file, User user) throws IOException;
 
+    FileVO uploadFile(MultipartFile file, User user, String kbId) throws IOException;
+
     PageResult<FileVO> getUserFiles(String userId, int page, int limit);
 
     Optional<UploadedFile> findById(String fileId);

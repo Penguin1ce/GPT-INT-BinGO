@@ -21,13 +21,16 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public List<String> retrieveContext(String userId, String query, int topK, int candidateLimit) {
+    public List<String> retrieveContext(List<String> kbIds, String query, int topK, int candidateLimit) {
         List<Double> q = embeddingService.embed(query);
         if (q == null || q.isEmpty()) {
             return Collections.emptyList();
         }
-        int limit = candidateLimit > 0 ? candidateLimit : Math.max(topK * 4, 20);
-        List<DocumentChunk> chunks = redisDocumentChunkRepository.findByUser(userId, limit);
+        if (kbIds == null || kbIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        int perKb = candidateLimit > 0 ? candidateLimit : Math.max(topK * 4, 20);
+        List<DocumentChunk> chunks = redisDocumentChunkRepository.findByKnowledgeBases(kbIds, perKb);
         if (chunks.isEmpty()) {
             return Collections.emptyList();
         }

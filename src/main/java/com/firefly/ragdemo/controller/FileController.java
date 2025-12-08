@@ -30,6 +30,7 @@ public class FileController {
 
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<FileVO>> uploadFile(@RequestParam("file") MultipartFile file,
+            @RequestParam(value = "kbId", required = false) String kbId,
             @AuthenticationPrincipal CustomUserPrincipal principal) {
 
         if (file.isEmpty()) {
@@ -39,7 +40,7 @@ public class FileController {
 
         try {
             User user = principal.getUser();
-            FileVO fileVO = fileService.uploadFile(file, user);
+            FileVO fileVO = fileService.uploadFile(file, user, kbId);
 
             ApiResponse<FileVO> response = ApiResponse.success("文件上传成功，开始处理", fileVO);
             return ResponseEntity.ok(response);

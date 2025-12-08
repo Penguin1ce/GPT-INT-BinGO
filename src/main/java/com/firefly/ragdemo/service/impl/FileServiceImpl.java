@@ -7,6 +7,7 @@ import com.firefly.ragdemo.mapper.UploadedFileMapper;
 import com.firefly.ragdemo.service.FileService;
 import com.firefly.ragdemo.service.RagIndexService;
 import com.firefly.ragdemo.repository.RedisDocumentChunkRepository;
+import com.firefly.ragdemo.service.KnowledgeBaseService;
 import com.firefly.ragdemo.util.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ public class FileServiceImpl implements FileService {
     private final UploadedFileMapper uploadedFileMapper;
     private final RagIndexService ragIndexService;
     private final RedisDocumentChunkRepository redisDocumentChunkRepository;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     @Value("${app.file.upload-dir:uploads}")
     private String uploadDir;
@@ -41,6 +43,12 @@ public class FileServiceImpl implements FileService {
     @Override
     @Transactional
     public FileVO uploadFile(MultipartFile file, User user) throws IOException {
+        return uploadFile(file, user, null);
+    }
+
+    @Override
+    @Transactional
+    public FileVO uploadFile(MultipartFile file, User user, String kbId) throws IOException {
         validateFile(file);
 
         Path uploadPath = Paths.get(uploadDir);
@@ -55,6 +63,8 @@ public class FileServiceImpl implements FileService {
 
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
+        String resolvedKbId = knowledgeBaseService.resolveUploadKb(user.getId(), user.getUsername(), kbId);
+
         UploadedFile uploadedFile = UploadedFile.builder()
                 .id(UUID.randomUUID().toString())
                 .userId(user.getId())
@@ -63,6 +73,7 @@ public class FileServiceImpl implements FileService {
                 .fileSize(file.getSize())
                 .fileType(extension)
                 .uploadTime(LocalDateTime.now())
+                .kbId(resolvedKbId)
                 .status(UploadedFile.FileStatus.PROCESSING)
                 .build();
 
@@ -76,6 +87,7 @@ public class FileServiceImpl implements FileService {
                 .fileSize(uploadedFile.getFileSize())
                 .fileType(uploadedFile.getFileType())
                 .uploadTime(uploadedFile.getUploadTime())
+                .kbId(uploadedFile.getKbId())
                 .status(uploadedFile.getStatus())
                 .build();
     }
@@ -99,6 +111,7 @@ public class FileServiceImpl implements FileService {
                     .fileSize(f.getFileSize())
                     .fileType(f.getFileType())
                     .uploadTime(f.getUploadTime())
+                    .kbId(f.getKbId())
                     .status(f.getStatus())
                     .build());
         }
@@ -129,7 +142,7 @@ public class FileServiceImpl implements FileService {
         if (!Objects.equals(file.getUserId(), userId)) {
             throw new IllegalArgumentException("无权删除他人文件");
         }
-        redisDocumentChunkRepository.deleteByFileIdAndUser(fileId, userId);
+        redisDocumentChunkRepository.deleteByFileIdAndUser(fileId, userId, file.getKbId());
         // 删除磁盘文件（忽略失败）
         try {
             Path p = Paths.get(file.getFilePath());

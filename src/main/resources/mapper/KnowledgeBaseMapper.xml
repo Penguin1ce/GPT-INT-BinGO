@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.firefly.ragdemo.mapper.KnowledgeBaseMapper">
+
+    <resultMap id="KnowledgeBaseResult" type="com.firefly.ragdemo.entity.KnowledgeBase">
+        <id property="id" column="id"/>
+        <result property="name" column="name"/>
+        <result property="description" column="description"/>
+        <result property="type" column="type"/>
+        <result property="ownerId" column="owner_id"/>
+        <result property="isActive" column="is_active"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="KnowledgeBaseResult">
+        SELECT * FROM knowledge_bases WHERE id = #{id}
+    </select>
+
+    <select id="findPrivateByOwner" resultMap="KnowledgeBaseResult">
+        SELECT * FROM knowledge_bases
+        WHERE owner_id = #{ownerId}
+          AND type = 'PRIVATE'
+        LIMIT 1
+    </select>
+
+    <select id="findAccessibleKbIds" resultType="string">
+        SELECT DISTINCT kb.id
+        FROM knowledge_bases kb
+        LEFT JOIN user_knowledge_base_access acc
+            ON acc.kb_id = kb.id AND acc.user_id = #{userId}
+        WHERE kb.is_active = 1
+          AND (
+            kb.type = 'SHARED'
+            OR kb.owner_id = #{userId}
+            OR acc.role IS NOT NULL
+          )
+    </select>
+
+    <select id="findActiveSharedIds" resultType="string">
+        SELECT id
+        FROM knowledge_bases
+        WHERE type = 'SHARED'
+          AND is_active = 1
+        ORDER BY created_at ASC
+    </select>
+
+    <insert id="insert" parameterType="com.firefly.ragdemo.entity.KnowledgeBase">
+        INSERT INTO knowledge_bases (
+            id, name, description, type, owner_id, is_active, created_at, updated_at
+        ) VALUES (
+            #{id}, #{name}, #{description}, #{type}, #{ownerId}, #{isActive},
+            NOW(), NOW()
+        )
+    </insert>
+
+</mapper>

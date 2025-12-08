@@ -4,5 +4,8 @@ import java.util.List;
 
 public interface RagRetrievalService {
 
-    List<String> retrieveContext(String userId, String query, int topK, int candidateLimit);
-} 
+    /**
+     * 按指定知识库集合检索上下文
+     */
+    List<String> retrieveContext(List<String> kbIds, String query, int topK, int candidateLimit);
+}

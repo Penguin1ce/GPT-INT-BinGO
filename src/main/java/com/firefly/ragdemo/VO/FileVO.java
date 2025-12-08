@@ -16,4 +16,5 @@ public class FileVO {
     private String fileType;
     private LocalDateTime uploadTime;
     private FileStatus status;
+    private String kbId;
 }
