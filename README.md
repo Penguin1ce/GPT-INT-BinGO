@@ -28,6 +28,12 @@
 - 分页支持
 - 文件大小限制（10MB）
 
+### 📚 知识库检索
+- 公共知识库（共享）+ 私人知识库（用户独享）+ 授权知识库联合检索
+- 文件上传可指定目标知识库（默认落个人私人库）
+- Redis 分库索引，支持按知识库ID召回与删除
+- 提供命令行批量导入工具，将目录文件批量写入公共库
+
 ### 🔧 技术特性
 - 统一响应格式
 - 全局异常处理
@@ -42,7 +48,7 @@
 - **Spring Boot 3.5.5** - 主框架
 - **Spring Security** - 安全认证
 - **MyBatis** - 数据库访问
-- **PostgreSQL** - 主数据库
+- **MySQL** - 主数据库
 - **Redis** - 缓存 + RAG向量存储
 - **RabbitMQ** - 消息队列（解耦 + 削峰 + 异步处理）
 - **JWT** - 令牌认证
@@ -54,13 +60,16 @@
 ### 环境要求
 - Java 21
 - Maven 3.6+
-- PostgreSQL 12+
+- MySQL 8.0+
 - Redis 6.0+
 
 ### 数据库准备
 ```bash
-# 创建PostgreSQL数据库
-createdb ragdemo
+# 创建MySQL数据库与账号
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS ragdemo DEFAULT CHARACTER SET utf8mb4; \
+  CREATE USER IF NOT EXISTS 'ragdemo'@'%' IDENTIFIED BY 'password'; \
+  GRANT ALL PRIVILEGES ON ragdemo.* TO 'ragdemo'@'%'; \
+  FLUSH PRIVILEGES;"
 ```
 
 ### 配置文件
@@ -69,9 +78,9 @@ createdb ragdemo
 ```yaml
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ragdemo
-    username: your-db-username
-    password: your-db-password
+    url: jdbc:mysql://localhost:3306/ragdemo?useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+    username: ragdemo
+    password: password
   
   data:
     redis:
@@ -98,6 +107,24 @@ mvn spring-boot:run
 ```
 
 项目将在 `http://localhost:8000` 启动。
+
+### 批量导入公共知识库（命令行工具）
+无需启动 Web 服务，使用 CLI 将目录下所有文件上传到公共知识库 `kb_shared_cpp_tutorial`：
+```bash
+mvn -q -DskipTests \
+  -Dexec.mainClass=com.firefly.ragdemo.tool.BulkPublicKbUploader \
+  -Dspring.profiles.active=dev \
+  -Dspring.rabbitmq.listener.simple.auto-startup=false \
+  -Dspring.rabbitmq.listener.direct.auto-startup=false \
+  -Dspring.datasource.url="jdbc:mysql://127.0.0.1:3306/ragdemo?useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false" \
+  -Dspring.datasource.username=ragdemo \
+  -Dspring.datasource.password=password \
+  exec:java \
+  -Dexec.args="dir=/ABS/PATH/TO/public_files user=admin kb=kb_shared_cpp_tutorial waitSeconds=180 retryFailedOnce=true"
+```
+说明：
+- `dir`：要导入的目录绝对路径；`user`：已有用户；`kb` 默认公共库，可按需更换。
+- `waitSeconds`：轮询索引完成的超时时间（秒）；`retryFailedOnce`：失败时自动重试一次索引。
 
 ## RAG 知识库存储
 
@@ -312,3 +339,9 @@ GPL v3
 - [ ] 单元测试覆盖率提升（当前测试用例较少）
 - [ ] 生产环境部署文档（Docker、K8s等）
 - [ ] 聊天响应中返回引用来源文档信息（便于用户溯源） 
+
+## TODO LIST
+
+- [ ] 将向量数据库迁移到Redis Vector Library (RedisVL)
+- [ ] 添加数据库的session列表查询
+- [ ] 当前数据库的Document表不会和Redis同步

@@ -1,22 +1,24 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: ragdemo_postgres
+  mysql:
+    image: mysql:8.0
+    container_name: ragdemo_mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ragdemo
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      MYSQL_DATABASE: ragdemo
+      MYSQL_USER: ragdemo
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: rootpassword
+    command: [ "--default-authentication-plugin=mysql_native_password" ]
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     networks:
       - ragdemo_net
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\"" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -59,7 +61,7 @@ services:
       retries: 5
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
   rabbitmq_data:
 

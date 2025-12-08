@@ -5,32 +5,31 @@
 ### 步骤 1：执行数据库迁移
 
 ```bash
-# 确保PostgreSQL正在运行
-docker ps | grep postgres
+# 确保MySQL正在运行
+docker ps | grep mysql
 
-# 执行迁移脚本
-psql -U postgres -d ragdemo -f migration_knowledge_bases.sql
+# 执行迁移脚本（密码按提示输入）
+mysql -h 127.0.0.1 -P 3306 -u ragdemo -p ragdemo < migration_knowledge_bases.sql
 ```
 
-**预期输出**：
+**预期输出**（节选）：
 ```
-CREATE TABLE
-CREATE INDEX
-INSERT 0 1
-NOTICE: 所有文件已正确关联到知识库
-NOTICE: 知识库系统迁移成功完成！
+Database changed
+Query OK, 0 rows affected
+Query OK, 1 row affected
+...
 ```
 
 ### 步骤 2：验证数据库迁移
 
 ```bash
-psql -U postgres -d ragdemo
+mysql -h 127.0.0.1 -P 3306 -u ragdemo -p ragdemo
 ```
 
 ```sql
 -- 检查表是否创建成功
-\dt knowledge_bases
-\dt user_knowledge_base_access
+SHOW TABLES LIKE 'knowledge_bases';
+SHOW TABLES LIKE 'user_knowledge_base_access';
 
 -- 查看默认共享知识库
 SELECT * FROM knowledge_bases WHERE type = 'SHARED';
@@ -46,9 +45,8 @@ SELECT * FROM v_user_accessible_knowledge_bases LIMIT 10;
 
 ```sql
 -- 插入测试用户（如果不存在）
-INSERT INTO users (id, username, email, password_hash)
-VALUES ('test_user_001', 'testuser', 'test@example.com', '$2a$10$dummyhash')
-ON CONFLICT (id) DO NOTHING;
+INSERT IGNORE INTO users (id, username, email, password_hash)
+VALUES ('test_user_001', 'testuser', 'test@example.com', '$2a$10$dummyhash');
 
 -- 为测试用户创建私人知识库
 INSERT INTO knowledge_bases (id, name, description, type, owner_id, is_active)

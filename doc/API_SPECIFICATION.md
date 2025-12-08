@@ -338,6 +338,7 @@ Content-Type: multipart/form-data
 **请求参数**:
 ```
 file: <二进制文件数据>
+kbId: 可选，目标知识库ID。缺省时自动上传到当前用户的私人知识库；若传入公共知识库ID（如 `kb_shared_cpp_tutorial`），则上传到公共知识库。
 ```
 
 **支持的文件类型**:
@@ -563,7 +564,8 @@ curl -X POST http://localhost:8000/ask \
 # 上传文件
 curl -X POST http://localhost:8000/upload \
   -H "Authorization: Bearer <token>" \
-  -F "file=@document.pdf"
+  -F "file=@document.pdf" \
+  -F "kbId=kb_shared_cpp_tutorial"  # 可选：指定公共知识库
 
 # 获取文件列表
 curl -X GET http://localhost:8000/files?page=1&limit=10 \
@@ -595,7 +597,7 @@ curl -X GET http://localhost:8000/files?page=1&limit=10 \
 
 ### 7.1 必需环境
 - Java 21+
-- PostgreSQL 12+
+- MySQL 8.0+
 - Redis 6.0+
 - Maven 3.6+
 
@@ -607,8 +609,8 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ragdemo
-    username: postgres
+    url: jdbc:mysql://localhost:3306/ragdemo?useUnicode=true&characterEncoding=utf-8&serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+    username: ragdemo
     password: your-password
   
   ai:

@@ -799,10 +799,10 @@ public List<DocumentChunk> findByKnowledgeBases(List<String> kbIds, int candidat
 ### 阶段一：数据库准备
 
 ```bash
-# 1. 执行数据库迁移SQL
-psql -U postgres -d ragdemo < migration/add_knowledge_bases.sql
+# 1. 执行数据库迁移SQL（MySQL 8+）
+mysql -h 127.0.0.1 -P 3306 -u ragdemo -p ragdemo < migration_knowledge_bases.sql
 
-# 2. 创建默认共享知识库
+# 2. 创建默认共享知识库（如需要额外示例数据）
 INSERT INTO knowledge_bases (id, name, description, type, owner_id, is_active)
 VALUES ('kb_shared_default', 'C++教学官方知识库', '重庆大学C++课程官方资料', 'SHARED', NULL, TRUE);
 ```
@@ -871,6 +871,6 @@ public void migrateExistingUsers() {
 
 ### 技术债务
 
-- 当前 `document_chunks` PostgreSQL 表未使用，可考虑删除
+- 当前 `document_chunks` MySQL 表未使用，可考虑删除
 - Redis 缓存过期策略需细化（避免内存泄漏）
 - 大规模知识库（>10万chunks）需考虑分片策略
