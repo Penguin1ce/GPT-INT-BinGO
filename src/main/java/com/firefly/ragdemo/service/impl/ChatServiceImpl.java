@@ -2,12 +2,13 @@ package com.firefly.ragdemo.service.impl;
 
 import com.firefly.ragdemo.DTO.ChatRequest;
 import com.firefly.ragdemo.VO.ChatResponseVO;
+import com.firefly.ragdemo.ai.AIHelper;
+import com.firefly.ragdemo.ai.AIHelperManager;
 import com.firefly.ragdemo.service.ChatService;
 import com.firefly.ragdemo.service.RagRetrievalService;
 import com.firefly.ragdemo.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -19,17 +20,19 @@ import org.springframework.util.StringUtils;
 @Slf4j
 public class ChatServiceImpl implements ChatService {
 
-    private final OpenAiChatModel chatModel;
+    private final AIHelperManager aiHelperManager;
     private final RagRetrievalService ragRetrievalService;
     private final KnowledgeBaseService knowledgeBaseService;
 
     @Override
     public ChatResponseVO chat(ChatRequest request, String userId) {
         try {
+            String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+            AIHelper helper = aiHelperManager.getOrCreate(userId, sessionId);
+
             String finalPrompt = buildSystemPrompt(request) + "\n\n" + buildRagContext(request, userId) + "\n\n" + buildConversationPrompt(request.getMessages());
 
-            var response = chatModel.call(finalPrompt);
-            String content = response;
+            String content = helper.call(finalPrompt);
 
             ChatResponseVO.UsageVO usageVO = ChatResponseVO.UsageVO.builder()
                     .promptTokens(estimateTokens(finalPrompt))
@@ -54,10 +57,11 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public Flux<String> chatStream(ChatRequest request, String userId) {
         try {
+            String sessionId = request.getSessionId() != null ? request.getSessionId() : "default";
+            AIHelper helper = aiHelperManager.getOrCreate(userId, sessionId);
+
             String finalPrompt = buildSystemPrompt(request) + "\n\n" + buildRagContext(request, userId) + "\n\n" + buildConversationPrompt(request.getMessages());
-            return chatModel.stream(finalPrompt)
-                    .map(chunk -> chunk != null ? chunk : "")
-                    .filter(content -> !content.isEmpty());
+            return helper.stream(finalPrompt);
         } catch (Exception e) {
             log.error("Stream chat request failed for user {}: {}", userId, e.getMessage(), e);
             return Flux.error(new RuntimeException("流式对话请求失败: " + e.getMessage()));
@@ -87,24 +91,10 @@ public class ChatServiceImpl implements ChatService {
                 + "- 安全与诚信：不编造不存在的库/接口；不确定时请先澄清需求或说明限制。\n"
                 + languageDirective
                 + "\n- 交互方式：若问题含糊，请用 1-2 句澄清提问再继续。";
-//        return "你现在是一名重庆大学大数据与软件学院 C++ 课程助教（TA），并以《BanG Dream!》角色若叶睦（Wakaba Mutsumi）的人格进行教学。"
-//                + "你的目标是帮助学生理解与掌握 C++（默认使用 C++17），并提供清晰、正确、可运行的示例。"
-//                + "\n\n请遵循以下规则：\n"
-//                + "- 角色定位：若叶睦本体人格，内向、温柔、谨慎、认真。\n"
-//                + "- 人格扩展：当用户触发“墨缇丝 / Mortis 模式”时，可以切换为外向活泼的墨缇丝人格；用户要求“恢复正常”后切回本体。\n"
-//                + "- 专业性：解释必须准确，必要时给出时间复杂度、边界条件、内存行为。\n"
-//                + "- 示例代码：默认使用 C++17，包含必要的头文件与 main() 或可调用片段。\n"
-//                + "- 表达特征：先给结论，再给步骤或原理，最后给简短示例。语气偏温柔但专业。\n"
-//                + "- 安全与诚信：不虚构库或语法；不确定的问题应先澄清。\n"
-//                + "- 互动方式：当问题含糊时，用 1～2 句礼貌地提出澄清。\n"
-//                + "- 若为墨缇丝人格时，可适当活泼与戏剧化，但必须保持答案正确性。\n"
-//                + languageDirective;
-
     }
 
     private String buildRagContext(ChatRequest request, String userId) {
         try {
-            // 取用户最后一条消息作为查询意图
             List<ChatRequest.ChatMessage> messages = request.getMessages();
             if (messages == null || messages.isEmpty()) return "";
             String lastUser = null;
@@ -118,7 +108,6 @@ public class ChatServiceImpl implements ChatService {
             List<String> accessibleKbIds = knowledgeBaseService.listAccessibleKbIds(userId);
             List<String> contexts = ragRetrievalService.retrieveContext(accessibleKbIds, lastUser, 5, 20);
             if (contexts.isEmpty()) {
-                // 兜底：按用户维度检索，防止公共KB列表异常时无结果
                 contexts = ragRetrievalService.retrieveContextByUser(userId, lastUser, 5, 20);
             }
             if (contexts.isEmpty()) return "";

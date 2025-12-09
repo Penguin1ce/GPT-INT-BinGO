@@ -7,9 +7,6 @@ import com.firefly.ragdemo.VO.ChatSessionVO;
 import com.firefly.ragdemo.VO.ChatMessageVO;
 import com.firefly.ragdemo.entity.ChatSession;
 import com.firefly.ragdemo.entity.ChatMessageRecord;
-import com.firefly.ragdemo.messaging.ChatMessageQueueService;
-import com.firefly.ragdemo.messaging.ChatMessagingProperties;
-import com.firefly.ragdemo.messaging.ChatQueueTicket;
 import com.firefly.ragdemo.messaging.ChatHistoryPersistPayload;
 import com.firefly.ragdemo.messaging.ChatHistoryQueueProducer;
 import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
@@ -24,7 +21,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.context.request.async.DeferredResult;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.Instant;
 import reactor.core.publisher.Flux;
@@ -33,14 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.UUID;
 import org.springframework.security.core.context.SecurityContext;
@@ -48,20 +41,25 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.concurrent.DelegatingSecurityContextExecutorService;
 import org.springframework.util.StringUtils;
 
+/**
+ * 聊天控制器
+ * AI对话直接调用Service，对话后的数据库操作通过消息队列异步处理
+ */
 @RestController
 @RequiredArgsConstructor
 @Slf4j
 public class ChatController {
 
     private final ChatService chatService;
-    private final ChatMessageQueueService chatMessageQueueService;
-    private final ChatMessagingProperties chatMessagingProperties;
     private final ChatSessionService chatSessionService;
     private final ChatHistoryQueueProducer chatHistoryQueueProducer;
+
     @Value("${spring.ai.openai.chat.options.model}")
     private String configuredChatModel;
+
     private final ExecutorService executorService =
         new DelegatingSecurityContextExecutorService(Executors.newCachedThreadPool());
+
     private final ScheduledExecutorService heartbeatScheduler =
         Executors.newScheduledThreadPool(1, runnable -> {
             Thread thread = new Thread(runnable);
@@ -70,7 +68,7 @@ public class ChatController {
             return thread;
         });
 
-    private static final long SSE_TIMEOUT_MS = 0L; // 不主动中断流
+    private static final long SSE_TIMEOUT_MS = 0L;
     private static final long HEARTBEAT_INTERVAL_MS = 15000L;
 
     @PostMapping("/ask")
@@ -103,11 +101,9 @@ public class ChatController {
             request.setSessionId(sessionId);
 
             if (Boolean.TRUE.equals(request.getStream())) {
-                // 流式响应
                 return handleStreamResponse(request, userId, sessionId, sessionTitle);
             } else {
-                // 非流式响应
-                return handleNormalResponse(request, userId);
+                return handleNormalResponse(request, userId, sessionId, sessionTitle);
             }
 
         } catch (Exception e) {
@@ -171,14 +167,34 @@ public class ChatController {
         }
     }
 
-    private ResponseEntity<SseEmitter> handleStreamResponse(ChatRequest request, String userId, String sessionId, String sessionTitle) {
+    /**
+     * 非流式响应：直接调用ChatService，对话完成后异步持久化到数据库
+     */
+    private ResponseEntity<ApiResponse<ChatResponseVO>> handleNormalResponse(
+            ChatRequest request, String userId, String sessionId, String sessionTitle) {
+        String userMessage = extractLatestUserMessage(request);
+
+        // 直接调用ChatService
+        ChatResponseVO response = chatService.chat(request, userId);
+
+        // 异步持久化聊天记录到消息队列
+        if (response != null && StringUtils.hasText(response.getResponse())) {
+            publishHistory(sessionId, userId, sessionTitle, userMessage, response.getResponse(), request.getModel());
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("对话完成", response));
+    }
+
+    /**
+     * 流式响应：通过SSE返回，完成后异步持久化
+     */
+    private ResponseEntity<SseEmitter> handleStreamResponse(
+            ChatRequest request, String userId, String sessionId, String sessionTitle) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
         String userMessage = extractLatestUserMessage(request);
         StringBuilder assistantBuilder = new StringBuilder();
 
-        // 通过原子标志跟踪是否已完成，避免完成后继续发送
         AtomicBoolean isCompleted = new AtomicBoolean(false);
-        // 订阅引用，便于在完成/出错时取消
         final Disposable[] subscriptionRef = new Disposable[1];
         final ScheduledFuture<?>[] heartbeatRef = new ScheduledFuture<?>[1];
 
@@ -190,7 +206,6 @@ public class ChatController {
             log.warn("发送会话信息失败: {}", sendSessionError.getMessage());
         }
 
-        // 设置完成和超时回调
         emitter.onCompletion(() -> {
             log.debug("SSE连接完成");
             isCompleted.set(true);
@@ -222,11 +237,9 @@ public class ChatController {
             }
         });
 
-        // 保存当前安全上下文
         SecurityContext securityContext = SecurityContextHolder.getContext();
-        
+
         executorService.execute(() -> {
-            // 在异步线程中设置安全上下文
             SecurityContextHolder.setContext(securityContext);
             try {
                 Flux<String> responseStream = chatService.chatStream(request, userId);
@@ -236,7 +249,6 @@ public class ChatController {
                         chunk -> {
                             if (isCompleted.get()) return;
                             try {
-                                // 发送SSE格式的数据，仅发送JSON在data行
                                 String payload = chunk.replace("\"", "\\\"").replace("\n", "\\n");
                                 String json = "{\"message\":{\"content\":\"" + payload + "\"}}";
                                 assistantBuilder.append(chunk);
@@ -279,6 +291,7 @@ public class ChatController {
                                 try {
                                     String json = "{\"done\":true}";
                                     emitter.send(SseEmitter.event().data(json));
+                                    // 异步持久化聊天记录
                                     publishHistory(sessionId, userId, sessionTitle, userMessage,
                                             assistantBuilder.toString(), request.getModel());
                                 } catch (Exception e) {
@@ -311,7 +324,6 @@ public class ChatController {
                 }
                 cancelHeartbeat(heartbeatRef[0]);
             } finally {
-                // 清理安全上下文
                 SecurityContextHolder.clearContext();
             }
         });
@@ -320,57 +332,8 @@ public class ChatController {
                 .contentType(MediaType.TEXT_EVENT_STREAM)
                 .header("Cache-Control", "no-cache")
                 .header("Connection", "keep-alive")
-                .header("X-Accel-Buffering", "no") // 禁用Nginx缓冲
+                .header("X-Accel-Buffering", "no")
                 .body(emitter);
-    }
-
-    private DeferredResult<ResponseEntity<ApiResponse<ChatResponseVO>>> handleNormalResponse(ChatRequest request,
-            String userId) {
-        DeferredResult<ResponseEntity<ApiResponse<ChatResponseVO>>> deferredResult =
-                new DeferredResult<>(chatMessagingProperties.getRequestTimeoutMs() + 5000L);
-
-        ChatQueueTicket ticket = chatMessageQueueService.submit(request, userId);
-        CompletableFuture<ChatResponseVO> future = ticket.future()
-                .orTimeout(chatMessagingProperties.getRequestTimeoutMs(), TimeUnit.MILLISECONDS);
-
-        future.thenAccept(response -> {
-            if (!deferredResult.isSetOrExpired()) {
-                deferredResult.setResult(ResponseEntity.ok(ApiResponse.success("对话完成", response)));
-            }
-        }).exceptionally(ex -> {
-            Throwable actual =
-                    (ex instanceof CompletionException && ex.getCause() != null) ? ex.getCause() : ex;
-            int status = (actual instanceof TimeoutException) ? 504 : 500;
-            String message;
-            if (actual instanceof TimeoutException) {
-                message = "AI处理超时";
-            } else {
-                message = actual.getMessage() == null ? "对话请求失败" : actual.getMessage();
-            }
-            if (!deferredResult.isSetOrExpired()) {
-                deferredResult.setResult(ResponseEntity.status(status)
-                        .body(ApiResponse.error(message, status)));
-            }
-            return null;
-        });
-
-        deferredResult.onTimeout(() -> {
-            log.warn("请求处理超时，requestId={}", ticket.requestId());
-            if (!deferredResult.isSetOrExpired()) {
-                deferredResult.setErrorResult(ResponseEntity.status(504)
-                        .body(ApiResponse.error("AI处理超时", 504)));
-            }
-        });
-
-        deferredResult.onError(error -> {
-            log.error("DeferredResult执行失败", error);
-            if (!deferredResult.isSetOrExpired()) {
-                deferredResult.setErrorResult(ResponseEntity.status(500)
-                        .body(ApiResponse.error("对话请求失败", 500)));
-            }
-        });
-
-        return deferredResult;
     }
 
     private String resolveSessionId(ChatRequest request) {
@@ -434,12 +397,11 @@ public class ChatController {
         return null;
     }
 
-    private void publishHistory(String sessionId,
-                                String userId,
-                                String sessionTitle,
-                                String userMessage,
-                                String assistantReply,
-                                String model) {
+    /**
+     * 将聊天记录发送到消息队列，异步持久化到数据库
+     */
+    private void publishHistory(String sessionId, String userId, String sessionTitle,
+                                String userMessage, String assistantReply, String model) {
         if (!StringUtils.hasText(sessionId) || !StringUtils.hasText(userMessage)) {
             return;
         }

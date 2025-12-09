@@ -1,6 +1,5 @@
 package com.firefly.ragdemo.config;
 
-import com.firefly.ragdemo.messaging.ChatMessagingProperties;
 import com.firefly.ragdemo.messaging.ChunkSyncMessagingProperties;
 import com.firefly.ragdemo.messaging.ChatSessionMessagingProperties;
 import org.springframework.amqp.core.Binding;
@@ -19,30 +18,18 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * RabbitMQ配置
+ * 消息队列用于：
+ * 1. 文档分块同步到MySQL
+ * 2. 聊天记录异步持久化
+ */
 @Configuration
 @EnableRabbit
-@EnableConfigurationProperties({ChatMessagingProperties.class, ChunkSyncMessagingProperties.class, ChatSessionMessagingProperties.class})
+@EnableConfigurationProperties({ChunkSyncMessagingProperties.class, ChatSessionMessagingProperties.class})
 public class RabbitMQConfig {
 
-    @Bean
-    public Queue aiChatQueue(ChatMessagingProperties properties) {
-        return QueueBuilder.durable(properties.getQueue()).build();
-    }
-
-    @Bean
-    public DirectExchange aiChatExchange(ChatMessagingProperties properties) {
-        return new DirectExchange(properties.getExchange());
-    }
-
-    @Bean
-    public Binding aiChatBinding(Queue aiChatQueue,
-                                 DirectExchange aiChatExchange,
-                                 ChatMessagingProperties properties) {
-        return BindingBuilder.bind(aiChatQueue)
-                .to(aiChatExchange)
-                .with(properties.getRoutingKey());
-    }
-
+    // 文档分块同步队列
     @Bean
     public Queue chunkSyncQueue(ChunkSyncMessagingProperties properties) {
         return QueueBuilder.durable(properties.getQueue()).build();
@@ -62,6 +49,7 @@ public class RabbitMQConfig {
                 .with(properties.getRoutingKey());
     }
 
+    // 聊天记录持久化队列
     @Bean
     public Queue chatSessionQueue(ChatSessionMessagingProperties properties) {
         return QueueBuilder.durable(properties.getQueue()).build();
@@ -88,11 +76,9 @@ public class RabbitMQConfig {
 
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
-                                         MessageConverter messageConverter,
-                                         ChatMessagingProperties properties) {
+                                         MessageConverter messageConverter) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMessageConverter(messageConverter);
-        rabbitTemplate.setExchange(properties.getExchange());
         return rabbitTemplate;
     }
 
