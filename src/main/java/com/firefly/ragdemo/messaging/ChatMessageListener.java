@@ -9,8 +9,10 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 @RequiredArgsConstructor
@@ -20,6 +22,8 @@ public class ChatMessageListener {
     private final ChatService chatService;
     private final ChatMessageQueueService chatMessageQueueService;
     private final ChatHistoryQueueProducer chatHistoryQueueProducer;
+    @Value("${spring.ai.openai.chat.options.model}")
+    private String configuredChatModel;
 
     @RabbitListener(queues = "${app.messaging.chat.queue}", concurrency = "${app.messaging.chat.concurrency:3}")
     public void handleChatMessage(AiMessagePayload payload) {
@@ -55,11 +59,14 @@ public class ChatMessageListener {
                     .createdAt(Instant.now())
                     .build());
         }
+        String modelToPersist = StringUtils.hasText(configuredChatModel)
+                ? configuredChatModel
+                : payload.getChatRequest().getModel();
         ChatHistoryPersistPayload persistPayload = ChatHistoryPersistPayload.builder()
                 .sessionId(payload.getChatRequest().getSessionId())
                 .userId(payload.getUserId())
                 .sessionTitle(response != null ? response.getSessionTitle() : userMessage)
-                .model(payload.getChatRequest().getModel())
+                .model(modelToPersist)
                 .createdAt(payload.getCreatedAt())
                 .messages(messages)
                 .build();

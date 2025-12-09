@@ -18,6 +18,7 @@ import com.firefly.ragdemo.service.ChatSessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -57,6 +58,8 @@ public class ChatController {
     private final ChatMessagingProperties chatMessagingProperties;
     private final ChatSessionService chatSessionService;
     private final ChatHistoryQueueProducer chatHistoryQueueProducer;
+    @Value("${spring.ai.openai.chat.options.model}")
+    private String configuredChatModel;
     private final ExecutorService executorService =
         new DelegatingSecurityContextExecutorService(Executors.newCachedThreadPool());
     private final ScheduledExecutorService heartbeatScheduler =
@@ -86,6 +89,12 @@ public class ChatController {
             ApiResponse<ChatResponseVO> response = ApiResponse.error("参数验证失败", 400, errors);
             return ResponseEntity.badRequest().body(response);
         }
+
+        if (!StringUtils.hasText(configuredChatModel)) {
+            return ResponseEntity.status(500)
+                    .body(ApiResponse.error("服务端未配置模型"));
+        }
+        request.setModel(configuredChatModel);
 
         try {
             String userId = principal.getUserId();

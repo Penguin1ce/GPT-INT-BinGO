@@ -1,15 +1,14 @@
 package com.firefly.ragdemo.DTO;
 
 import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
+import jakarta.validation.constraints.NotNull;
 
 @Data
 public class ChatRequest {
 
-    @NotNull(message = "模型不能为空")
     private String model;
 
     @NotEmpty(message = "消息列表不能为空")
