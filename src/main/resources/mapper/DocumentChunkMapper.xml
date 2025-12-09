@@ -30,4 +30,8 @@
             )
         </foreach>
     </insert>
+
+    <delete id="deleteByFileId">
+        DELETE FROM document_chunks WHERE file_id = #{fileId}
+    </delete>
 </mapper>

@@ -9,4 +9,6 @@ import org.apache.ibatis.annotations.Param;
 public interface DocumentChunkMapper {
 
     int batchInsertIgnore(@Param("chunks") List<DocumentChunk> chunks);
+
+    int deleteByFileId(@Param("fileId") String fileId);
 }

@@ -3,6 +3,7 @@ package com.firefly.ragdemo.service.impl;
 import com.firefly.ragdemo.VO.FileVO;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.entity.User;
+import com.firefly.ragdemo.mapper.DocumentChunkMapper;
 import com.firefly.ragdemo.mapper.UploadedFileMapper;
 import com.firefly.ragdemo.service.FileService;
 import com.firefly.ragdemo.service.RagIndexService;
@@ -30,6 +31,7 @@ import java.util.*;
 public class FileServiceImpl implements FileService {
 
     private final UploadedFileMapper uploadedFileMapper;
+    private final DocumentChunkMapper documentChunkMapper;
     private final RagIndexService ragIndexService;
     private final RedisDocumentChunkRepository redisDocumentChunkRepository;
     private final KnowledgeBaseService knowledgeBaseService;
@@ -142,12 +144,18 @@ public class FileServiceImpl implements FileService {
         if (!Objects.equals(file.getUserId(), userId)) {
             throw new IllegalArgumentException("无权删除他人文件");
         }
+        // 删除Redis中的chunks
         redisDocumentChunkRepository.deleteByFileIdAndUser(fileId, userId, file.getKbId());
-        // 删除磁盘文件（忽略失败）
+        // 删除MySQL中的chunks
+        int deletedChunks = documentChunkMapper.deleteByFileId(fileId);
+        log.info("已删除文件{}的MySQL chunks记录: {}条", fileId, deletedChunks);
+        // 删除磁盘文件
         try {
             Path p = Paths.get(file.getFilePath());
             Files.deleteIfExists(p);
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            log.warn("删除磁盘文件失败: {} ({})", file.getFilePath(), e.getMessage());
+        }
         // 删除uploaded_files记录
         uploadedFileMapper.deleteById(fileId);
     }

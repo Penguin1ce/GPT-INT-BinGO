@@ -7,6 +7,7 @@ import com.firefly.ragdemo.service.EmbeddingService;
 import com.firefly.ragdemo.service.RagRetrievalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,16 +23,27 @@ public class RagRetrievalServiceImpl implements RagRetrievalService {
 
     @Override
     public List<String> retrieveContext(List<String> kbIds, String query, int topK, int candidateLimit) {
-        List<Double> q = embeddingService.embed(query);
-        if (q == null || q.isEmpty()) {
-            return Collections.emptyList();
-        }
         if (kbIds == null || kbIds.isEmpty()) {
             return Collections.emptyList();
         }
         int perKb = candidateLimit > 0 ? candidateLimit : Math.max(topK * 4, 20);
         List<DocumentChunk> chunks = redisDocumentChunkRepository.findByKnowledgeBases(kbIds, perKb);
-        if (chunks.isEmpty()) {
+        return rankChunks(query, topK, chunks);
+    }
+
+    @Override
+    public List<String> retrieveContextByUser(String userId, String query, int topK, int candidateLimit) {
+        if (!StringUtils.hasText(userId)) {
+            return Collections.emptyList();
+        }
+        int perUser = candidateLimit > 0 ? candidateLimit : Math.max(topK * 4, 20);
+        List<DocumentChunk> chunks = redisDocumentChunkRepository.findByUser(userId, perUser);
+        return rankChunks(query, topK, chunks);
+    }
+
+    private List<String> rankChunks(String query, int topK, List<DocumentChunk> chunks) {
+        List<Double> q = embeddingService.embed(query);
+        if (q == null || q.isEmpty() || chunks == null || chunks.isEmpty()) {
             return Collections.emptyList();
         }
         double[] queryVector = toPrimitive(q);

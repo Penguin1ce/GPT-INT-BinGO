@@ -25,7 +25,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
     private final KnowledgeBaseMapper knowledgeBaseMapper;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<String> listAccessibleKbIds(String userId) {
         Set<String> ids = new HashSet<>(knowledgeBaseMapper.findAccessibleKbIds(userId));
 
@@ -33,11 +33,10 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
         String privateKbId = ensurePrivateKnowledgeBase(userId, null);
         ids.add(privateKbId);
 
-        if (ids.isEmpty()) {
-            String sharedId = ensureDefaultSharedKb();
-            if (sharedId != null) {
-                ids.add(sharedId);
-            }
+        // 始终包含共享知识库
+        String sharedId = ensureDefaultSharedKb();
+        if (sharedId != null) {
+            ids.add(sharedId);
         }
 
         return new ArrayList<>(ids);
