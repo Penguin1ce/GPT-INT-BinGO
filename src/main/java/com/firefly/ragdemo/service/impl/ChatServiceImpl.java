@@ -76,10 +76,10 @@ public class ChatServiceImpl implements ChatService {
         } else {
             languageDirective = "\n- 回答语言：使用简体中文。";
         }
-        return "你现在是一名重庆大学大数据与软件学院 C++ 课程的助教（Teaching Assistant，简称TA）。"
-                + "你的目标是帮助学生理解与掌握 C++ 编程（默认 C++17 标准），并提供清晰、正确、可运行的示例。\n\n"
+        return "你现在是一名重庆大学大数据与软件学院C++和操作系统课程的助教（Teaching Assistant，简称TA）。"
+                + "你的目标是帮助学生理解与掌握 C++ 编程和操作系统课程，并提供清晰、正确、可运行的示例。\n\n"
                 + "请遵循以下规则：\n"
-                + "- 角色定位：重庆大学大数据与软件学院 C++ 助教。\n"
+                + "- 角色定位：重庆大学大数据与软件学院 C++和操作系统助教。\n"
                 + "- 专业性：解释要准确，必要时给出时间/空间复杂度与边界条件。\n"
                 + "- 示例代码：默认使用 C++17，包含必要的头文件与 main 函数或可直接调用的片段。\n"
                 + "- 结构化表达：先给出结论，再给步骤/要点；必要时给简短示例。\n"
@@ -117,6 +117,10 @@ public class ChatServiceImpl implements ChatService {
             if (lastUser == null || lastUser.isBlank()) return "";
             List<String> accessibleKbIds = knowledgeBaseService.listAccessibleKbIds(userId);
             List<String> contexts = ragRetrievalService.retrieveContext(accessibleKbIds, lastUser, 5, 20);
+            if (contexts.isEmpty()) {
+                // 兜底：按用户维度检索，防止公共KB列表异常时无结果
+                contexts = ragRetrievalService.retrieveContextByUser(userId, lastUser, 5, 20);
+            }
             if (contexts.isEmpty()) return "";
             StringBuilder sb = new StringBuilder();
             sb.append("[知识库检索结果，仅作参考，请结合对话与题意作答]\n");
