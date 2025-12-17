@@ -119,6 +119,9 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS ragdemo DEFAULT CHARACTER SET
   CREATE USER IF NOT EXISTS 'ragdemo'@'%' IDENTIFIED BY 'password'; \
   GRANT ALL PRIVILEGES ON ragdemo.* TO 'ragdemo'@'%'; \
   FLUSH PRIVILEGES;"
+
+# 初始化表结构与默认知识库
+mysql -h 127.0.0.1 -P 3306 -u ragdemo -p ragdemo < src/main/resources/mapper/schema.sql
 ```
 
 ### 配置文件

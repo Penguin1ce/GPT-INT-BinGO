@@ -1,4 +1,8 @@
--- 基础表结构（MySQL 8+）
+-- 数据库初始化脚本（MySQL 8+）
+-- 包含：基础表结构 + 知识库能力 + 兼容性迁移 + 默认数据
+-- 运行一次即可完成部署，无需再单独执行 migration_knowledge_bases.sql
+
+START TRANSACTION;
 
 CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(64) PRIMARY KEY,
@@ -196,3 +200,116 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     INDEX idx_chat_msg_session (session_id, seq),
     INDEX idx_chat_msg_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 兼容旧版本：如果 uploaded_files 已存在但缺少 kb_id，则补充
+SET @col_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'uploaded_files'
+      AND column_name = 'kb_id'
+);
+SET @sql_add_col := IF(
+    @col_exists = 0,
+    'ALTER TABLE uploaded_files ADD COLUMN kb_id VARCHAR(64) COMMENT ''所属知识库ID''',
+    'SELECT 1'
+);
+PREPARE stmt_add_col FROM @sql_add_col;
+EXECUTE stmt_add_col;
+DEALLOCATE PREPARE stmt_add_col;
+
+-- 兼容旧版本：补充 uploaded_files 与 knowledge_bases 的外键与索引
+SET @fk_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.REFERENTIAL_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND CONSTRAINT_NAME = 'fk_file_kb'
+      AND TABLE_NAME = 'uploaded_files'
+);
+SET @sql_fk := IF(
+    @fk_exists = 0,
+    'ALTER TABLE uploaded_files ADD CONSTRAINT fk_file_kb FOREIGN KEY (kb_id) REFERENCES knowledge_bases(id) ON DELETE CASCADE',
+    'SELECT 1'
+);
+PREPARE stmt_fk FROM @sql_fk;
+EXECUTE stmt_fk;
+DEALLOCATE PREPARE stmt_fk;
+
+SET @idx_files_kb := (
+    SELECT COUNT(*)
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name = 'uploaded_files'
+      AND index_name = 'idx_uploaded_files_kb'
+);
+SET @sql_idx_files_kb := IF(
+    @idx_files_kb = 0,
+    'CREATE INDEX idx_uploaded_files_kb ON uploaded_files(kb_id)',
+    'SELECT 1'
+);
+PREPARE stmt_idx_files_kb FROM @sql_idx_files_kb;
+EXECUTE stmt_idx_files_kb;
+DEALLOCATE PREPARE stmt_idx_files_kb;
+
+-- 默认数据：创建公共知识库
+INSERT IGNORE INTO knowledge_bases (id, name, description, type, owner_id, is_active)
+VALUES (
+    'kb_shared_cpp_tutorial',
+    'C++教学官方知识库',
+    '重庆大学大数据与软件学院C++课程官方教学资料',
+    'SHARED',
+    NULL,
+    TRUE
+);
+
+-- 数据迁移：为已有用户补充私人知识库
+INSERT INTO knowledge_bases (id, name, description, type, owner_id, is_active)
+SELECT
+    CONCAT('kb_private_', u.id) AS kb_id,
+    CONCAT(u.username, '的私人知识库') AS name,
+    '用户个人学习资料和笔记' AS description,
+    'PRIVATE' AS type,
+    u.id AS owner_id,
+    TRUE AS is_active
+FROM users u
+LEFT JOIN knowledge_bases kb
+    ON kb.owner_id = u.id AND kb.type = 'PRIVATE'
+WHERE kb.id IS NULL;
+
+-- 数据迁移：给历史上传文件补齐 kb_id（指向各自私人知识库）
+UPDATE uploaded_files uf
+SET kb_id = CONCAT('kb_private_', uf.user_id)
+WHERE kb_id IS NULL
+  AND EXISTS (
+      SELECT 1
+      FROM knowledge_bases kb
+      WHERE kb.id = CONCAT('kb_private_', uf.user_id)
+  );
+
+-- 视图：用户可访问的知识库列表
+CREATE OR REPLACE VIEW v_user_accessible_knowledge_bases AS
+SELECT
+    u.id AS user_id,
+    kb.id AS kb_id,
+    kb.name,
+    kb.description,
+    kb.type,
+    kb.owner_id,
+    kb.is_active,
+    CASE
+        WHEN kb.type = 'SHARED' THEN 'READER'
+        WHEN kb.owner_id = u.id THEN 'ADMIN'
+        ELSE COALESCE(acc.role, 'NONE')
+    END AS effective_role
+FROM users u
+CROSS JOIN knowledge_bases kb
+LEFT JOIN user_knowledge_base_access acc
+    ON acc.user_id = u.id AND acc.kb_id = kb.id
+WHERE kb.is_active = TRUE
+  AND (
+      kb.type = 'SHARED'
+      OR kb.owner_id = u.id
+      OR acc.role IS NOT NULL
+  );
+
+COMMIT;
