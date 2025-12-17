@@ -1,10 +1,9 @@
-package com.firefly.ragdemo.VO;
+package com.firefly.ragdemo.vo;
 
 import com.firefly.ragdemo.entity.UploadedFile.FileStatus;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Data;
-
-import java.time.LocalDateTime;
 
 @Data
 @Builder

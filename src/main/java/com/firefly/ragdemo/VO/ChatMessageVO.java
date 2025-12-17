@@ -1,4 +1,4 @@
-package com.firefly.ragdemo.VO;
+package com.firefly.ragdemo.vo;
 
 import java.time.LocalDateTime;
 import lombok.Builder;

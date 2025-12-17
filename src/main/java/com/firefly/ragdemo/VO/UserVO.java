@@ -1,9 +1,8 @@
-package com.firefly.ragdemo.VO;
-
-import lombok.Builder;
-import lombok.Data;
+package com.firefly.ragdemo.vo;
 
 import java.time.LocalDateTime;
+import lombok.Builder;
+import lombok.Data;
 
 @Data
 @Builder

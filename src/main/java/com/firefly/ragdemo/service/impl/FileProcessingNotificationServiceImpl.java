@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.service.impl;
 
-import com.firefly.ragdemo.VO.FileProcessingNotification;
+import com.firefly.ragdemo.vo.FileProcessingNotification;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.service.FileProcessingNotificationService;
 import jakarta.annotation.PreDestroy;

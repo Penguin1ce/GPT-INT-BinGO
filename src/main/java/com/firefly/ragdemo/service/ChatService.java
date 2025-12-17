@@ -1,7 +1,7 @@
 package com.firefly.ragdemo.service;
 
-import com.firefly.ragdemo.DTO.ChatRequest;
-import com.firefly.ragdemo.VO.ChatResponseVO;
+import com.firefly.ragdemo.dto.ChatRequest;
+import com.firefly.ragdemo.vo.ChatResponseVO;
 import reactor.core.publisher.Flux;
 
 public interface ChatService {

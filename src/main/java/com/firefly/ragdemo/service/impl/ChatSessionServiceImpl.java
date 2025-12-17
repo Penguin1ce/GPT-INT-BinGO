@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.service.impl;
 
-import com.firefly.ragdemo.DTO.ChatRequest;
+import com.firefly.ragdemo.dto.ChatRequest;
 import com.firefly.ragdemo.entity.ChatMessageRecord;
 import com.firefly.ragdemo.entity.ChatSession;
 import com.firefly.ragdemo.mapper.ChatMessageRecordMapper;
@@ -17,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -119,7 +120,7 @@ public class ChatSessionServiceImpl implements ChatSessionService {
     public List<ChatMessageRecord> listMessages(String sessionId, String userId, int limit) {
         Optional<ChatSession> sessionOpt = chatSessionMapper.findById(sessionId);
         if (sessionOpt.isEmpty() || !userId.equals(sessionOpt.get().getUserId())) {
-            throw new IllegalArgumentException("无权访问该会话或会话不存在");
+            throw new AccessDeniedException("无权访问该会话或会话不存在");
         }
         int safeLimit = limit > 0 ? limit : DEFAULT_LIMIT;
         return chatMessageRecordMapper.findBySession(sessionId, userId, safeLimit);

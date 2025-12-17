@@ -1,15 +1,15 @@
 package com.firefly.ragdemo.controller;
 
-import com.firefly.ragdemo.DTO.ChatRequest;
-import com.firefly.ragdemo.VO.ApiResponse;
-import com.firefly.ragdemo.VO.ChatResponseVO;
-import com.firefly.ragdemo.VO.ChatSessionVO;
-import com.firefly.ragdemo.VO.ChatMessageVO;
+import com.firefly.ragdemo.dto.ChatRequest;
+import com.firefly.ragdemo.vo.ApiResponse;
+import com.firefly.ragdemo.vo.ChatResponseVO;
+import com.firefly.ragdemo.vo.ChatSessionVO;
+import com.firefly.ragdemo.vo.ChatMessageVO;
 import com.firefly.ragdemo.entity.ChatSession;
 import com.firefly.ragdemo.entity.ChatMessageRecord;
 import com.firefly.ragdemo.messaging.ChatHistoryPersistPayload;
 import com.firefly.ragdemo.messaging.ChatHistoryQueueProducer;
-import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
+import com.firefly.ragdemo.security.CustomUserPrincipal;
 import com.firefly.ragdemo.service.ChatService;
 import com.firefly.ragdemo.service.ChatSessionService;
 import jakarta.validation.Valid;
@@ -18,8 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.Instant;
@@ -73,20 +73,7 @@ public class ChatController {
 
     @PostMapping("/ask")
     public Object ask(@Valid @RequestBody ChatRequest request,
-            BindingResult bindingResult,
             @AuthenticationPrincipal CustomUserPrincipal principal) {
-
-        if (bindingResult.hasErrors()) {
-            List<ApiResponse.ValidationError> errors = bindingResult.getFieldErrors().stream()
-                    .map(error -> ApiResponse.ValidationError.builder()
-                            .field(error.getField())
-                            .message(error.getDefaultMessage())
-                            .build())
-                    .collect(Collectors.toList());
-
-            ApiResponse<ChatResponseVO> response = ApiResponse.error("参数验证失败", 400, errors);
-            return ResponseEntity.badRequest().body(response);
-        }
 
         if (!StringUtils.hasText(configuredChatModel)) {
             return ResponseEntity.status(500)
@@ -159,7 +146,7 @@ public class ChatController {
                     "history", history
             );
             return ResponseEntity.ok(ApiResponse.success("获取会话历史成功", data));
-        } catch (IllegalArgumentException e) {
+        } catch (AccessDeniedException e) {
             return ResponseEntity.status(403).body(ApiResponse.error(e.getMessage(), 403));
         } catch (Exception e) {
             log.error("获取会话历史失败 sessionId={}, userId={}", sessionId, principal.getUserId(), e);

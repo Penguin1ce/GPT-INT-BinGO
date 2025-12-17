@@ -1,13 +1,13 @@
 package com.firefly.ragdemo.service.impl;
 
-import com.firefly.ragdemo.DTO.LoginRequest;
-import com.firefly.ragdemo.DTO.RegisterRequest;
-import com.firefly.ragdemo.VO.ApiResponse;
-import com.firefly.ragdemo.VO.LoginResponseVO;
-import com.firefly.ragdemo.VO.UserVO;
+import com.firefly.ragdemo.dto.LoginRequest;
+import com.firefly.ragdemo.dto.RegisterRequest;
+import com.firefly.ragdemo.vo.ApiResponse;
+import com.firefly.ragdemo.vo.LoginResponseVO;
+import com.firefly.ragdemo.vo.UserVO;
 import com.firefly.ragdemo.entity.RefreshToken;
 import com.firefly.ragdemo.entity.User;
-import com.firefly.ragdemo.secutiry.JwtUtil;
+import com.firefly.ragdemo.security.JwtUtil;
 import com.firefly.ragdemo.service.AuthService;
 import com.firefly.ragdemo.service.RefreshTokenService;
 import com.firefly.ragdemo.service.UserService;

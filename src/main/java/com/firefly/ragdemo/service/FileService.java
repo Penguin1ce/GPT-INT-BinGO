@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.service;
 
-import com.firefly.ragdemo.VO.FileVO;
+import com.firefly.ragdemo.vo.FileVO;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.entity.User;
 import com.firefly.ragdemo.util.PageResult;

@@ -5,6 +5,7 @@ import com.firefly.ragdemo.mapper.KnowledgeBaseMapper;
 import com.firefly.ragdemo.service.KnowledgeBaseService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -63,7 +64,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
             throw new IllegalArgumentException("目标知识库不可用: " + requestedKbId);
         }
         if ("PRIVATE".equalsIgnoreCase(kb.getType()) && kb.getOwnerId() != null && !kb.getOwnerId().equals(userId)) {
-            throw new IllegalArgumentException("无权上传到该私人知识库");
+            throw new AccessDeniedException("无权上传到该私人知识库");
         }
         return kb.getId();
     }

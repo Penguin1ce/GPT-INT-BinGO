@@ -1,4 +1,4 @@
-package com.firefly.ragdemo.secutiry;
+package com.firefly.ragdemo.security;
 
 import com.firefly.ragdemo.config.JwtConfig;
 import io.jsonwebtoken.*;

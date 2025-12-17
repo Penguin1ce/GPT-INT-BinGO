@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.exception;
 
-import com.firefly.ragdemo.VO.ApiResponse;
+import com.firefly.ragdemo.vo.ApiResponse;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import lombok.extern.slf4j.Slf4j;

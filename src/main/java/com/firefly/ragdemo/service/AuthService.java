@@ -1,10 +1,10 @@
 package com.firefly.ragdemo.service;
 
-import com.firefly.ragdemo.DTO.LoginRequest;
-import com.firefly.ragdemo.DTO.RegisterRequest;
-import com.firefly.ragdemo.VO.ApiResponse;
-import com.firefly.ragdemo.VO.LoginResponseVO;
-import com.firefly.ragdemo.VO.UserVO;
+import com.firefly.ragdemo.dto.LoginRequest;
+import com.firefly.ragdemo.dto.RegisterRequest;
+import com.firefly.ragdemo.vo.ApiResponse;
+import com.firefly.ragdemo.vo.LoginResponseVO;
+import com.firefly.ragdemo.vo.UserVO;
 
 public interface AuthService {
 

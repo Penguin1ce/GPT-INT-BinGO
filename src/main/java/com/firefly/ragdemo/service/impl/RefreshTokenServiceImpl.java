@@ -2,7 +2,7 @@ package com.firefly.ragdemo.service.impl;
 
 import com.firefly.ragdemo.entity.RefreshToken;
 import com.firefly.ragdemo.mapper.RefreshTokenMapper;
-import com.firefly.ragdemo.secutiry.JwtUtil;
+import com.firefly.ragdemo.security.JwtUtil;
 import com.firefly.ragdemo.service.RefreshTokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

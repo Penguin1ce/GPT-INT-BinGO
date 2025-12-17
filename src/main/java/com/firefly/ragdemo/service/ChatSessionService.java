@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.service;
 
-import com.firefly.ragdemo.DTO.ChatRequest;
+import com.firefly.ragdemo.dto.ChatRequest;
 import com.firefly.ragdemo.entity.ChatMessageRecord;
 import com.firefly.ragdemo.entity.ChatSession;
 import com.firefly.ragdemo.messaging.ChatHistoryPersistPayload;

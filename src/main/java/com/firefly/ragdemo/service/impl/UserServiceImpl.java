@@ -2,7 +2,7 @@ package com.firefly.ragdemo.service.impl;
 
 import com.firefly.ragdemo.entity.User;
 import com.firefly.ragdemo.mapper.UserMapper;
-import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
+import com.firefly.ragdemo.security.CustomUserPrincipal;
 import com.firefly.ragdemo.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;

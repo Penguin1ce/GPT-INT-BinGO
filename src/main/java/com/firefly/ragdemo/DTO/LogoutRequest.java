@@ -1,4 +1,4 @@
-package com.firefly.ragdemo.DTO;
+package com.firefly.ragdemo.dto;
 
 import lombok.Data;
 

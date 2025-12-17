@@ -1,7 +1,7 @@
 package com.firefly.ragdemo.config;
 
-import com.firefly.ragdemo.secutiry.JwtAuthenticationEntryPoint;
-import com.firefly.ragdemo.secutiry.JwtAuthenticationFilter;
+import com.firefly.ragdemo.security.JwtAuthenticationEntryPoint;
+import com.firefly.ragdemo.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

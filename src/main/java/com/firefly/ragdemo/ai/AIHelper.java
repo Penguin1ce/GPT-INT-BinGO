@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.ai;
 
-import com.firefly.ragdemo.DTO.ChatRequest;
+import com.firefly.ragdemo.dto.ChatRequest;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;

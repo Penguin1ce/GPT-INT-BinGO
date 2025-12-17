@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.service.impl;
 
-import com.firefly.ragdemo.VO.FileVO;
+import com.firefly.ragdemo.vo.FileVO;
 import com.firefly.ragdemo.entity.UploadedFile;
 import com.firefly.ragdemo.entity.User;
 import com.firefly.ragdemo.mapper.DocumentChunkMapper;
@@ -13,6 +13,7 @@ import com.firefly.ragdemo.util.PageResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -142,7 +143,7 @@ public class FileServiceImpl implements FileService {
         }
         UploadedFile file = fileOpt.get();
         if (!Objects.equals(file.getUserId(), userId)) {
-            throw new IllegalArgumentException("无权删除他人文件");
+            throw new AccessDeniedException("无权删除他人文件");
         }
         // 删除Redis中的chunks
         redisDocumentChunkRepository.deleteByFileIdAndUser(fileId, userId, file.getKbId());

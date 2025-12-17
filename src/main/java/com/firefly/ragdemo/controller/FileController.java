@@ -1,9 +1,9 @@
 package com.firefly.ragdemo.controller;
 
-import com.firefly.ragdemo.VO.ApiResponse;
-import com.firefly.ragdemo.VO.FileVO;
+import com.firefly.ragdemo.vo.ApiResponse;
+import com.firefly.ragdemo.vo.FileVO;
 import com.firefly.ragdemo.entity.User;
-import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
+import com.firefly.ragdemo.security.CustomUserPrincipal;
 import com.firefly.ragdemo.service.FileProcessingNotificationService;
 import com.firefly.ragdemo.service.FileService;
 import com.firefly.ragdemo.util.PageResult;
@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -45,6 +46,10 @@ public class FileController {
             ApiResponse<FileVO> response = ApiResponse.success("文件上传成功，开始处理", fileVO);
             return ResponseEntity.ok(response);
 
+        } catch (AccessDeniedException e) {
+            log.warn("文件上传权限不足 for user {}: {}", principal.getUserId(), e.getMessage());
+            return ResponseEntity.status(403)
+                    .body(ApiResponse.error(e.getMessage(), 403));
         } catch (IllegalArgumentException e) {
             log.warn("文件上传验证失败 for user {}: {}", principal.getUserId(), e.getMessage());
             return ResponseEntity.badRequest()
@@ -95,7 +100,7 @@ public class FileController {
         try {
             fileService.deleteUserFile(principal.getUserId(), fileId);
             return ResponseEntity.ok(ApiResponse.success("删除成功", null));
-        } catch (IllegalArgumentException e) {
+        } catch (AccessDeniedException e) {
             return ResponseEntity.status(403).body(ApiResponse.error(e.getMessage(), 403));
         } catch (Exception e) {
             log.error("删除文件失败 for user {}: {}", principal.getUserId(), e.getMessage(), e);

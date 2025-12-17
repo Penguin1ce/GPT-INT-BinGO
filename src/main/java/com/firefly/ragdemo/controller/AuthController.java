@@ -1,25 +1,22 @@
 package com.firefly.ragdemo.controller;
 
-import com.firefly.ragdemo.DTO.LoginRequest;
-import com.firefly.ragdemo.DTO.LogoutRequest;
-import com.firefly.ragdemo.DTO.RefreshTokenRequest;
-import com.firefly.ragdemo.DTO.RegisterRequest;
-import com.firefly.ragdemo.VO.ApiResponse;
-import com.firefly.ragdemo.VO.LoginResponseVO;
-import com.firefly.ragdemo.VO.UserVO;
+import com.firefly.ragdemo.dto.LoginRequest;
+import com.firefly.ragdemo.dto.LogoutRequest;
+import com.firefly.ragdemo.dto.RefreshTokenRequest;
+import com.firefly.ragdemo.dto.RegisterRequest;
+import com.firefly.ragdemo.vo.ApiResponse;
+import com.firefly.ragdemo.vo.LoginResponseVO;
+import com.firefly.ragdemo.vo.UserVO;
 import com.firefly.ragdemo.entity.User;
-import com.firefly.ragdemo.secutiry.CustomUserPrincipal;
+import com.firefly.ragdemo.security.CustomUserPrincipal;
 import com.firefly.ragdemo.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/auth")
@@ -30,20 +27,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserVO>> register(@Valid @RequestBody RegisterRequest request,
-            BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            List<ApiResponse.ValidationError> errors = bindingResult.getFieldErrors().stream()
-                    .map(error -> ApiResponse.ValidationError.builder()
-                            .field(error.getField())
-                            .message(error.getDefaultMessage())
-                            .build())
-                    .collect(Collectors.toList());
-
-            ApiResponse<UserVO> response = ApiResponse.error("参数验证失败", 400, errors);
-            return ResponseEntity.badRequest().body(response);
-        }
+    public ResponseEntity<ApiResponse<UserVO>> register(@Valid @RequestBody RegisterRequest request) {
 
         try {
             ApiResponse<UserVO> response = authService.register(request);
@@ -62,20 +46,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<LoginResponseVO>> login(@Valid @RequestBody LoginRequest request,
-            BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            List<ApiResponse.ValidationError> errors = bindingResult.getFieldErrors().stream()
-                    .map(error -> ApiResponse.ValidationError.builder()
-                            .field(error.getField())
-                            .message(error.getDefaultMessage())
-                            .build())
-                    .collect(Collectors.toList());
-
-            ApiResponse<LoginResponseVO> response = ApiResponse.error("参数验证失败", 400, errors);
-            return ResponseEntity.badRequest().body(response);
-        }
+    public ResponseEntity<ApiResponse<LoginResponseVO>> login(@Valid @RequestBody LoginRequest request) {
 
         try {
             ApiResponse<LoginResponseVO> response = authService.login(request);
@@ -89,20 +60,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<LoginResponseVO>> refresh(@Valid @RequestBody RefreshTokenRequest request,
-            BindingResult bindingResult) {
-
-        if (bindingResult.hasErrors()) {
-            List<ApiResponse.ValidationError> errors = bindingResult.getFieldErrors().stream()
-                    .map(error -> ApiResponse.ValidationError.builder()
-                            .field(error.getField())
-                            .message(error.getDefaultMessage())
-                            .build())
-                    .collect(Collectors.toList());
-
-            ApiResponse<LoginResponseVO> response = ApiResponse.error("参数验证失败", 400, errors);
-            return ResponseEntity.badRequest().body(response);
-        }
+    public ResponseEntity<ApiResponse<LoginResponseVO>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
 
         try {
             ApiResponse<LoginResponseVO> response = authService.refreshToken(request.getRefreshToken());

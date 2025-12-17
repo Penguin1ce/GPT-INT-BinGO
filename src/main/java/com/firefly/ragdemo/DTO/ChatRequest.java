@@ -1,10 +1,9 @@
-package com.firefly.ragdemo.DTO;
+package com.firefly.ragdemo.dto;
 
 import jakarta.validation.constraints.NotEmpty;
-import lombok.Data;
-
-import java.util.List;
 import jakarta.validation.constraints.NotNull;
+import java.util.List;
+import lombok.Data;
 
 @Data
 public class ChatRequest {

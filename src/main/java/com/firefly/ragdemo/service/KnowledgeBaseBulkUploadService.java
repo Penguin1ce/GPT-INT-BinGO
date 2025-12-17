@@ -1,6 +1,6 @@
 package com.firefly.ragdemo.service;
 
-import com.firefly.ragdemo.VO.FileVO;
+import com.firefly.ragdemo.vo.FileVO;
 import com.firefly.ragdemo.entity.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

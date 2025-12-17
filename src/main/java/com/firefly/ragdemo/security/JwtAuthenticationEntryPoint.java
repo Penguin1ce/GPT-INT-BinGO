@@ -1,7 +1,7 @@
-package com.firefly.ragdemo.secutiry;
+package com.firefly.ragdemo.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.firefly.ragdemo.VO.ApiResponse;
+import com.firefly.ragdemo.vo.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
